@@ -1149,16 +1149,42 @@ async function distanciaRutaKm(cp, cl){
   return null;
 }
 
+/* Prioridad de búsqueda: 1) CABA, 2) Provincia de Buenos Aires, 3) resto del país.
+   Se piden varios resultados (con el mapa centrado en CABA para que el buscador
+   ya los ordene por cercanía) y, entre los que coinciden bien con lo escrito, se
+   elige el de mayor prioridad. Así "Güemes" da la calle de CABA antes que la
+   localidad de Salta, pero si lo escrito solo existe en otra provincia igual se
+   encuentra. */
+const CABA_CENTRO = { lat: -34.6037, lng: -58.3816 };
+function normGeo(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim(); }
+function prioridadZona(props){
+  const region = normGeo(props.region), regionA = normGeo(props.region_a);
+  const todo = normGeo([props.region, props.macroregion, props.county, props.locality, props.label].join(" | "));
+  const esCaba = /ciudad autonoma|autonomous city|capital federal|\bcaba\b/.test(todo) ||
+                 regionA === "c" || regionA === "cf" || regionA === "caba" ||
+                 region === "ciudad de buenos aires";
+  if(esCaba) return 0;
+  if(region === "buenos aires" || region === "provincia de buenos aires" || regionA === "ba" || regionA === "b") return 1;
+  return 2;
+}
 async function geocodeDireccion(direccion){
   if(!direccion || !direccion.trim()) return { error: "sin-direccion" };
   try{
-    const url = `${ORS_BASE}/pelias/v1/search?api_key=${encodeURIComponent(ORS_API_KEY)}&text=${encodeURIComponent(direccion)}&boundary.country=AR&size=1`;
+    const url = `${ORS_BASE}/pelias/v1/search?api_key=${encodeURIComponent(ORS_API_KEY)}&text=${encodeURIComponent(direccion)}&boundary.country=AR&focus.point.lat=${CABA_CENTRO.lat}&focus.point.lon=${CABA_CENTRO.lng}&lang=es&size=10`;
     const r = await fetch(url);
     if(!r.ok) return { error: "http-"+r.status };
     const data = await r.json();
-    const f = data && data.features && data.features[0];
-    if(f) return { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], nombre: f.properties.label };
-    return { error: "no-encontrada" };
+    const feats = (data && data.features) || [];
+    if(!feats.length) return { error: "no-encontrada" };
+    const conf = f => (f.properties && typeof f.properties.confidence === "number") ? f.properties.confidence : 1;
+    const mejorConf = Math.max(...feats.map(conf));
+    // Solo compiten los que coinciden casi tan bien como el mejor resultado
+    const candidatos = feats
+      .map((f, i)=> ({ f, i, prio: prioridadZona(f.properties||{}) }))
+      .filter(c=> conf(c.f) >= mejorConf - 0.15);
+    candidatos.sort((a,b)=> a.prio - b.prio || a.i - b.i);
+    const f = candidatos[0].f;
+    return { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], nombre: f.properties.label };
   }catch(e){
     return { error: "red", detalle: e && e.message ? e.message : "" };
   }
