@@ -549,8 +549,8 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
         <div class="section-title">Movimientos Diarios</div>
         <div class="mov-toolbar no-print">
           <button class="btn-add-row" id="btnNuevaFila">+ Agregar fila</button>
-          <button class="btn btn-light" id="btnImportar">Importar Excel</button>
-          <input type="file" id="importarArchivo" accept=".xlsx,.xls,.csv" style="display:none;">
+          <button class="btn btn-light" id="btnImportar" title="Excel (.xlsx, .xls, .csv) o PDF generado desde Excel">Importar Excel / PDF</button>
+          <input type="file" id="importarArchivo" accept=".xlsx,.xls,.csv,.pdf" style="display:none;">
           <button class="btn btn-light" id="btnMigrar">Migrar a Excel</button>
           <span id="migrarLockMsg" style="display:none; font-size:11px; color:var(--text-3);">Migrar requiere permiso de Pagos</span>
         </div>
@@ -736,6 +736,31 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
       <div style="display:flex; gap:8px;">
         <button type="button" class="btn-light" id="ubicModalAuto">Volver a ubicar automático</button>
         <button type="button" class="btn-primary" id="ubicModalGuardar">Guardar esta ubicación</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ruta-modal-overlay no-print" id="importModalOverlay">
+  <div class="ruta-modal" style="max-width:1100px;">
+    <div class="ruta-modal-head">
+      <div>
+        <div class="titulo">Vista previa de la importación</div>
+        <div class="sub" id="importModalSub"></div>
+      </div>
+      <button class="ruta-modal-close" id="importModalClose" type="button">×</button>
+    </div>
+    <div style="overflow:auto; flex:1 1 auto; min-height:0; max-height:60vh;">
+      <table>
+        <thead><tr><th>Chofer</th><th>Día</th><th>Hora</th><th>Lugar</th><th>Dirección</th><th>Localidad</th><th>Km</th><th>Gasto Extra</th><th>Monto</th><th>Observaciones</th></tr></thead>
+        <tbody id="importModalTbody"></tbody>
+      </table>
+    </div>
+    <div class="ruta-modal-foot">
+      <span>Revisá que cada dato haya quedado en su columna. Dentro de cada día, el orden de las filas es el orden del recorrido.</span>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="btn btn-light" id="importModalCancelar">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="importModalConfirmar">Importar</button>
       </div>
     </div>
   </div>
@@ -2414,7 +2439,14 @@ function importarFecha(v){
   m = n.match(/^(\d{1,2}) ([a-z]{3})[a-z]*(?: (\d{2,4}))?$/);
   if(m){
     const mes = MESES_ABR_IMPORT.indexOf(m[2]);
-    const anio = m[3] ? m[3].slice(-2) : String(new Date().getFullYear()).slice(-2);
+    let anio;
+    if(m[3]) anio = m[3].slice(-2);
+    else {
+      const hoy = new Date();
+      let y = hoy.getFullYear();
+      if(mes > hoy.getMonth() + 1) y--; // ej: en enero se importa "15-dic" -> diciembre del año pasado
+      anio = String(y).slice(-2);
+    }
     if(mes !== -1) return `${pad2(m[1])}/${pad2(mes+1)}/${anio}`;
   }
   return "";
@@ -2516,6 +2548,124 @@ document.getElementById("btnImportar").addEventListener("click", ()=>{
   document.getElementById("importarArchivo").value = "";
   document.getElementById("importarArchivo").click();
 });
+/* ---------- PDF: se lee con pdf.js (solo cuando hace falta) ----------
+   Sirve para PDFs generados desde Excel o desde una computadora (con texto
+   real). Se toman las palabras con su posición, se ubican los encabezados y
+   cada texto va a la columna cuyo centro tiene más cerca. Con eso se arma una
+   hoja "virtual" y sigue el mismo camino que un Excel. */
+const PDFJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+const PDFJS_WORKER_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+let _pdfjsPromise = null;
+function cargarPdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(!_pdfjsPromise){
+    _pdfjsPromise = new Promise((resolve, reject)=>{
+      const sc = document.createElement("script");
+      sc.src = PDFJS_URL;
+      sc.onload = ()=>{
+        if(!window.pdfjsLib){ reject(new Error("No se pudo cargar el lector de PDF.")); return; }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+        resolve(window.pdfjsLib);
+      };
+      sc.onerror = ()=>{ _pdfjsPromise = null; reject(new Error("No se pudo cargar el lector de PDF (revisá la conexión).")); };
+      document.head.appendChild(sc);
+    });
+  }
+  return _pdfjsPromise;
+}
+function esEncabezadoPdf(txt){
+  const n = normEncabezado(txt);
+  return Object.values(IMPORT_COLUMNAS).some(lista=> lista.includes(n));
+}
+async function libroDesdePdf(buf){
+  const pdfjsLib = await cargarPdfJs();
+  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise;
+  let columnas = null; // [{ titulo, cx }]
+  const matriz = [];
+  let hayTexto = false;
+  for(let n=1; n<=doc.numPages; n++){
+    const page = await doc.getPage(n);
+    const tc = await page.getTextContent();
+    const items = tc.items
+      .filter(it=> it.str && it.str.trim())
+      .map(it=> ({ txt: it.str.trim(), x: it.transform[4], y: it.transform[5], w: it.width || 0, h: Math.abs(it.transform[3]) || 8 }));
+    if(items.length) hayTexto = true;
+    // Renglones: items con casi la misma altura en la hoja (de arriba hacia abajo)
+    items.sort((a,b)=> b.y - a.y || a.x - b.x);
+    const renglones = [];
+    items.forEach(it=>{
+      const r = renglones.find(r=> Math.abs(r.y - it.y) <= Math.max(2, it.h * 0.4));
+      if(r) r.items.push(it); else renglones.push({ y: it.y, items: [it] });
+    });
+    renglones.forEach(r=>{
+      r.items.sort((a,b)=> a.x - b.x);
+      // ¿Es el renglón de encabezados? (en cualquier página)
+      const titulos = r.items.filter(it=> esEncabezadoPdf(it.txt));
+      if(titulos.length >= 2 && titulos.length >= r.items.length - 1){
+        columnas = titulos.map(it=> ({ titulo: it.txt, cx: it.x + it.w/2 }));
+        if(!matriz.length) matriz.push(columnas.map(c=> c.titulo));
+        return;
+      }
+      if(!columnas) return; // lo que está antes del primer encabezado (títulos, etc.)
+      const celdas = columnas.map(()=> []);
+      r.items.forEach(it=>{
+        const cx = it.x + it.w/2;
+        let mejor = 0;
+        columnas.forEach((c,i)=>{ if(Math.abs(c.cx - cx) < Math.abs(columnas[mejor].cx - cx)) mejor = i; });
+        celdas[mejor].push(it.txt);
+      });
+      matriz.push(celdas.map(c=> c.join(" ").replace(/\s+/g," ").trim()));
+    });
+  }
+  if(!hayTexto) throw new Error("El PDF no tiene texto (parece escaneado o una foto). Solo se pueden leer PDFs generados desde Excel o desde una computadora.");
+  if(!columnas) throw new Error(`No se encontraron los encabezados en el PDF (tiene que haber columnas como "Fecha" y "Lugar").`);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(matriz), "PDF");
+  return wb;
+}
+
+/* ---------- Vista previa antes de importar ---------- */
+let importPendiente = null; // { nuevas, repetidas, sinPermiso, sinFecha }
+function abrirVistaPreviaImport(datos, nombreArchivo){
+  importPendiente = datos;
+  const { nuevas, repetidas, sinPermiso } = datos;
+  const total = nuevas.leo.length + nuevas.tito.length;
+  const detalle = PERSONAS.filter(p=> nuevas[p].length).map(p=> `${PERSONA_NOMBRE[p]}: ${nuevas[p].length}`).join(" · ");
+  document.getElementById("importModalSub").textContent =
+    `${nombreArchivo} — ${total} fila(s) nuevas (${detalle})` +
+    (repetidas ? ` · ${repetidas} ya cargadas, se omiten` : "") +
+    (sinPermiso ? ` · ${sinPermiso} de un chofer que tu usuario no puede ver, se omiten` : "");
+  const filasHtml = [];
+  PERSONAS.forEach(p=> nuevas[p].forEach(f=>{
+    filasHtml.push(`<tr>
+      <td>${PERSONA_NOMBRE[p]}</td>
+      <td style="font-family:var(--mono); ${f.fecha?"":"color:var(--err-text);"}">${f.fecha ? escHtml(formatDiaCorto(f.fecha)) : "sin fecha"}</td>
+      <td style="font-family:var(--mono);">${escHtml(f.hora)}</td>
+      <td>${escHtml(f.lugar)}</td>
+      <td>${escHtml(f.direccion)}</td>
+      <td>${escHtml(f.localidad)}</td>
+      <td style="font-family:var(--mono); text-align:right;">${escHtml(f.km)}</td>
+      <td>${escHtml(textoGasto(f))}</td>
+      <td style="font-family:var(--mono); text-align:right;">${Number(f.gastoMonto) ? formatMonto(f.gastoMonto) : ""}</td>
+      <td>${escHtml(f.obs)}</td>
+    </tr>`);
+  }));
+  document.getElementById("importModalTbody").innerHTML = filasHtml.join("");
+  document.getElementById("importModalConfirmar").textContent = `Importar ${total} fila(s)`;
+  document.getElementById("importModalOverlay").classList.add("abierto");
+}
+function cerrarVistaPreviaImport(){
+  document.getElementById("importModalOverlay").classList.remove("abierto");
+  importPendiente = null;
+}
+document.getElementById("importModalCancelar").addEventListener("click", ()=>{ cerrarVistaPreviaImport(); mostrarImportMsg(""); });
+document.getElementById("importModalClose").addEventListener("click", ()=>{ cerrarVistaPreviaImport(); mostrarImportMsg(""); });
+document.getElementById("importModalConfirmar").addEventListener("click", ()=>{
+  const datos = importPendiente;
+  cerrarVistaPreviaImport();
+  if(datos) confirmarImportacion(datos);
+});
+
 document.getElementById("importarArchivo").addEventListener("change", async e=>{
   const archivo = e.target.files && e.target.files[0];
   if(!archivo) return;
@@ -2523,7 +2673,9 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
     mostrarImportMsg("Leyendo archivo…");
     const buf = await archivo.arrayBuffer();
     let wb;
-    if(/\.(csv|txt)$/i.test(archivo.name)){
+    if(/\.pdf$/i.test(archivo.name)){
+      wb = await libroDesdePdf(buf);
+    } else if(/\.(csv|txt)$/i.test(archivo.name)){
       /* CSV: se decodifica a mano (UTF-8, o Windows-1252 que es como lo guarda
          Excel en castellano) y se lee todo como texto, para que "10/08/2026" no
          se interprete como fecha en formato yanqui (mes/día). */
@@ -2537,11 +2689,11 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
     }
     const { salida, sinFecha, hojasLeidas } = leerFilasDeLibro(wb);
     if(hojasLeidas === 0){
-      mostrarImportMsg(`No se encontró ninguna hoja con encabezados reconocibles. La fila de títulos tiene que tener al menos "Fecha" (o "Día") y "Lugar" (o "Dirección").`, "var(--err-text)");
+      mostrarImportMsg(`No se encontraron encabezados reconocibles. La fila de títulos tiene que tener al menos "Fecha" (o "Día") y "Lugar" (o "Dirección").`, "var(--err-text)");
       return;
     }
     const existentes = {};
-    /* Se compara contra la fila tal como vino en el Excel (_importClave) y contra
+    /* Se compara contra la fila tal como vino en el archivo (_importClave) y contra
        cómo quedó cargada, así reimportar el mismo archivo no duplica filas aunque
        después se les haya completado la dirección. */
     PERSONAS.forEach(p=>{
@@ -2563,47 +2715,48 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
       mostrarImportMsg(`No hay filas nuevas para importar${repetidas?` (${repetidas} ya estaban cargadas)`:""}${sinPermiso?` · ${sinPermiso} de un chofer que tu usuario no puede ver`:""}.`, "var(--warn-text)");
       return;
     }
-    const detalle = PERSONAS.filter(p=> nuevas[p].length).map(p=> `${PERSONA_NOMBRE[p]}: ${nuevas[p].length}`).join(" · ");
-    const conf = `Se van a importar ${total} fila(s) (${detalle}).` +
-      (repetidas ? `\n${repetidas} fila(s) iguales a otras ya cargadas se omiten.` : "") +
-      (sinPermiso ? `\n${sinPermiso} fila(s) de un chofer que tu usuario no puede ver se omiten.` : "") +
-      "\n\n¿Seguir?";
-    if(!confirm(conf)){ mostrarImportMsg(""); return; }
-    PERSONAS.forEach(p=>{
-      // Orden del recorrido: a continuación de lo que ya hubiera cargado ese día
-      const proximo = {};
-      nuevas[p].forEach(f=>{
-        if(proximo[f.fecha] == null) proximo[f.fecha] = siguienteOrden(p, f.fecha);
-        f.orden = proximo[f.fecha]++;
-        marcarCarga(f);
-      });
-      DATA.movs[p].filas = DATA.movs[p].filas.concat(nuevas[p]);
-    });
-    // Lugares sin dirección/localidad: se completan con lo último usado para ese lugar
-    PERSONAS.forEach(p=> nuevas[p].forEach(f=> autocompletarLugar(f)));
-    filtros = {};
-    renderTabla();
-    persistir();
-    const avisoFecha = sinFecha ? ` ${sinFecha} fila(s) sin fecha válida (quedaron sin día, podés completarlo a mano).` : "";
-    mostrarImportMsg(`Se importaron ${total} fila(s) (${detalle}).${repetidas?` Se omitieron ${repetidas} repetidas.`:""}${avisoFecha}`, "var(--ok-text)");
-
-    const sinKm = [];
-    // Sin km y que no sean el primer lugar del día (ese no suma km)
-    PERSONAS.forEach(p=> nuevas[p].forEach(f=>{ if(f.km === "" && f.fecha && filaAnterior(f, p)) sinKm.push({ p, f }); }));
-    if(sinKm.length && confirm(`¿Calcular ahora los km de las ${sinKm.length} fila(s) importadas sin km?\nSe calcula uno por uno, puede tardar un par de minutos. Podés seguir usando la planilla mientras tanto.`)){
-      for(const p of PERSONAS){
-        const lista = sinKm.filter(x=>x.p===p).map(x=>x.f);
-        if(!lista.length) continue;
-        await recalcularKmFilas(lista, { persona: p, progreso: (i,n)=> mostrarImportMsg(`Calculando km de ${PERSONA_NOMBRE[p]}… ${i} de ${n}`) });
-      }
-      renderTabla();
-      mostrarImportMsg(`Se importaron ${total} fila(s) (${detalle}) y se calcularon los km. Revisá las filas con ⚠ o ≈ (dirección no encontrada o km estimado) con el pin o el botón de rutas.`, "var(--ok-text)");
-    }
+    mostrarImportMsg("Revisá la vista previa antes de importar.");
+    abrirVistaPreviaImport({ nuevas, repetidas, sinPermiso, sinFecha }, archivo.name);
   }catch(err){
     console.error(err);
     mostrarImportMsg("No se pudo leer el archivo: " + (err && err.message ? err.message : err), "var(--err-text)");
   }
 });
+
+async function confirmarImportacion({ nuevas, repetidas, sinFecha }){
+  const total = nuevas.leo.length + nuevas.tito.length;
+  const detalle = PERSONAS.filter(p=> nuevas[p].length).map(p=> `${PERSONA_NOMBRE[p]}: ${nuevas[p].length}`).join(" · ");
+  PERSONAS.forEach(p=>{
+    // Orden del recorrido: a continuación de lo que ya hubiera cargado ese día
+    const proximo = {};
+    nuevas[p].forEach(f=>{
+      if(proximo[f.fecha] == null) proximo[f.fecha] = siguienteOrden(p, f.fecha);
+      f.orden = proximo[f.fecha]++;
+      marcarCarga(f);
+    });
+    DATA.movs[p].filas = DATA.movs[p].filas.concat(nuevas[p]);
+  });
+  // Lugares sin dirección/localidad: se completan con lo último usado para ese lugar
+  PERSONAS.forEach(p=> nuevas[p].forEach(f=> autocompletarLugar(f)));
+  filtros = {};
+  renderTabla();
+  persistir();
+  const avisoFecha = sinFecha ? ` ${sinFecha} fila(s) sin fecha válida (quedaron sin día, podés completarlo a mano).` : "";
+  mostrarImportMsg(`Se importaron ${total} fila(s) (${detalle}).${repetidas?` Se omitieron ${repetidas} repetidas.`:""}${avisoFecha}`, "var(--ok-text)");
+
+  const sinKm = [];
+  // Sin km y que no sean el primer lugar del día (ese no suma km)
+  PERSONAS.forEach(p=> nuevas[p].forEach(f=>{ if(f.km === "" && f.fecha && filaAnterior(f, p)) sinKm.push({ p, f }); }));
+  if(sinKm.length && confirm(`¿Calcular ahora los km de las ${sinKm.length} fila(s) importadas sin km?\nSe calcula uno por uno, puede tardar un par de minutos. Podés seguir usando la planilla mientras tanto.`)){
+    for(const p of PERSONAS){
+      const lista = sinKm.filter(x=>x.p===p).map(x=>x.f);
+      if(!lista.length) continue;
+      await recalcularKmFilas(lista, { persona: p, progreso: (i,n)=> mostrarImportMsg(`Calculando km de ${PERSONA_NOMBRE[p]}… ${i} de ${n}`) });
+    }
+    renderTabla();
+    mostrarImportMsg(`Se importaron ${total} fila(s) (${detalle}) y se calcularon los km. Revisá las filas con ⚠ o ≈ (dirección no encontrada o km estimado) con el pin o el botón de rutas.`, "var(--ok-text)");
+  }
+}
 
 /* ============================================================
    MIGRAR A EXCEL + GOOGLE SHEETS (Drive)
