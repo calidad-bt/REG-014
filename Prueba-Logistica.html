@@ -1774,13 +1774,14 @@ function computeDiaTotals(dia){
   if(maxH !== null) heAuto += Math.max(0, maxH - NORMAL_FIN) / 60;
   return { kmTotal, gastoTotal, heAuto };
 }
-/* Orden de la planilla: día más reciente arriba; dentro del día, el orden del recorrido. */
+/* Orden de la planilla: día más reciente arriba; dentro del día, el recorrido de abajo
+   hacia arriba (el inicio queda abajo de todo y el último lugar cargado, arriba). */
 function filasOrdenadas(){
   return [...DATA.movs[movPersonaActual].filas].sort((a,b)=>{
     const df = parseDiaKey(b.fecha) - parseDiaKey(a.fecha);
     if(df !== 0) return df;
     if(a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1; // fechas inválidas agrupadas
-    return (a.orden||0) - (b.orden||0) || (a.creadoTs||0) - (b.creadoTs||0);
+    return (b.orden||0) - (a.orden||0) || (b.creadoTs||0) - (a.creadoTs||0);
   });
 }
 
@@ -1942,11 +1943,12 @@ function renderTabla(){
   const tbody = document.getElementById("movTbody");
   const todas = filasOrdenadas();
   const visibles = todas.filter(f=> pasaFiltros(f));
-  // Primer y último lugar de cada día (sobre todas las filas, no solo las filtradas)
+  // Primer y último lugar del recorrido de cada día (sobre todas las filas, no solo las
+  // filtradas). En pantalla cada día va de abajo (inicio) hacia arriba (último lugar).
   const primeras = new Set(), ultimas = new Set();
   const porFecha = {};
   todas.forEach(f=>{ (porFecha[f.fecha] = porFecha[f.fecha] || []).push(f); });
-  Object.values(porFecha).forEach(l=>{ primeras.add(l[0].id); ultimas.add(l[l.length-1].id); });
+  Object.values(porFecha).forEach(l=>{ ultimas.add(l[0].id); primeras.add(l[l.length-1].id); });
   if(todas.length === 0){
     tbody.innerHTML = `<tr><td colspan="11" class="empty-hint">Sin movimientos cargados. Usá "+ Agregar fila" para comenzar.</td></tr>`;
   } else if(visibles.length === 0){
@@ -1985,8 +1987,8 @@ function renderFila(f, pos){
       ${reordenar ? `<div class="orden-wrap">
         <span class="drag-handle" draggable="true" title="Arrastrar para cambiar el orden del recorrido">⋮⋮</span>
         <div class="orden-btns">
-          <button type="button" data-action="subir" title="Subir" ${pos.primera?"disabled":""}>▲</button>
-          <button type="button" data-action="bajar" title="Bajar" ${pos.ultima?"disabled":""}>▼</button>
+          <button type="button" data-action="subir" title="Subir (más adelante en el recorrido)" ${pos.ultima?"disabled":""}>▲</button>
+          <button type="button" data-action="bajar" title="Bajar (más cerca del inicio)" ${pos.primera?"disabled":""}>▼</button>
         </div>
       </div>` : ""}
     </td>
@@ -2172,7 +2174,8 @@ movTbody.addEventListener("click", e=>{
   if(action === "subir" || action === "bajar"){
     const dia = filasDelDia(movPersonaActual, f.fecha);
     const i = dia.findIndex(x=>x.id===f.id);
-    moverFila(f.id, action === "subir" ? i-1 : i+1);
+    // En pantalla el recorrido va de abajo hacia arriba: subir = más adelante en el recorrido
+    moverFila(f.id, action === "subir" ? i+1 : i-1);
     return;
   }
   if(action === "recalc-km"){
