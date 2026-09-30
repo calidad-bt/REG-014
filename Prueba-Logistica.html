@@ -197,9 +197,6 @@ select{
 }
 /* TIPO (Proveedor Fábrica / Proveedor CX / Cliente) — select con color por categoría */
 }
-.time-select-wrap{display:flex; align-items:center; gap:2px;}
-.time-select{font-family:var(--mono); font-weight:600; font-size:12px; width:52px; padding-left:6px; border:1px solid var(--border); background-color:#fff;}
-.time-sep{font-family:var(--mono); font-weight:700; color:var(--text-3); font-size:12px;}
 textarea.cta{resize:none; overflow:hidden; min-height:36px; font-family:var(--font);}
 
 /* ---------- BADGES / CHIPS ---------- */
@@ -336,8 +333,7 @@ tr.drag-over td{background:var(--accent-l); border-top:2px solid var(--accent);}
 .mov-info{font-family:var(--mono); font-size:11px; color:var(--text-2); display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
 .mov-info .btn{height:24px; font-size:11px; padding:0 8px;}
 .mov-table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:var(--radius);}
-table.mov-table{table-layout:fixed; min-width:1918px;}
-table.mov-table .time-select-wrap{flex-wrap:nowrap;}
+table.mov-table{table-layout:fixed; min-width:1760px;}
 table.mov-table th{border-top:none; vertical-align:middle; white-space:normal; line-height:1.3;}
 table.mov-table td{padding:5px 6px; vertical-align:middle;}
 .th-inner{display:flex; align-items:center; justify-content:space-between; gap:4px;}
@@ -411,37 +407,9 @@ table.mov-table textarea.cta{min-height:28px; padding:4px 6px;}
   table{min-width:790px;}
   .card-body{padding:12px 10px 14px;}
 
-  /* Planilla -> una tarjeta por fila */
-  .mov-table-scroll{overflow-x:visible; border:none;}
-  table.mov-table{min-width:0; table-layout:auto; width:100%;}
-  table.mov-table colgroup{display:none;}
-  table.mov-table thead{display:none;}
-  table.mov-table, table.mov-table tbody{display:block; width:100%;}
-  table.mov-table tr{
-    display:block; width:100%; border:1px solid var(--border); border-radius:var(--radius);
-    margin-bottom:10px; background:var(--surface);
-  }
-  table.mov-table tr:hover{background:var(--surface);}
-  table.mov-table td{
-    display:block; width:100% !important; border:none !important; border-bottom:1px solid var(--bg) !important;
-    padding:8px 10px;
-  }
-  table.mov-table tr td:last-child{border-bottom:none !important;}
-  table.mov-table td::before{
-    content:attr(data-label); display:block; font-size:9px; font-weight:700; text-transform:uppercase;
-    letter-spacing:.05em; color:var(--text-2); margin-bottom:4px;
-  }
-  table.mov-table .km-row{flex-wrap:wrap; justify-content:center; gap:7px !important;}
-  table.mov-table .km-row input{flex:1 1 90px !important; text-align:center !important; font-size:16px !important; font-weight:600; height:33px;}
-  table.mov-table .km-row button, table.mov-table .km-row a{height:30px !important; width:30px !important; padding:0 !important; font-size:15px !important;}
-  table.mov-table .km-row svg{width:16px; height:16px;}
-  .geo-btn{width:30px; height:30px;}
-  .geo-btn svg{width:16px; height:16px;}
+  /* Planilla: en el celular se mantiene como tabla, con scroll horizontal */
+  .card-body .mov-table-scroll{margin:0 -2px;}
   [data-action="del-usuario"]{width:30px !important; height:30px !important; font-size:15px !important;}
-  table.mov-table td[data-label="Eliminar"]{padding:10px;}
-  table.mov-table td[data-label="Eliminar"] .btn-del-row{width:100%; height:32px; font-size:15px;}
-  table.mov-table .empty-hint{display:block; padding:14px;}
-  table.mov-table .empty-hint::before{display:none;}
   .filtro-panel{left:8px !important; right:8px !important; width:auto !important; top:auto !important; bottom:8px !important;}
   input, select, textarea{font-size:16px;}
 }
@@ -561,8 +529,10 @@ table.mov-table textarea.cta{min-height:28px; padding:4px 6px;}
         <div class="section-title">Movimientos Diarios</div>
         <div class="mov-toolbar no-print">
           <button class="btn-add-row" id="btnNuevaFila">+ Agregar fila</button>
+          <button class="btn btn-light" id="btnImportar">Importar Excel</button>
+          <input type="file" id="importarArchivo" accept=".xlsx,.xls,.csv" style="display:none;">
           <button class="btn btn-light" id="btnMigrar">Migrar a Excel</button>
-          <span id="migrarLockMsg" style="display:none; font-size:11px; color:var(--text-3);">Requiere permiso de Pagos</span>
+          <span id="migrarLockMsg" style="display:none; font-size:11px; color:var(--text-3);">Migrar requiere permiso de Pagos</span>
         </div>
         <div class="migrar-panel no-print" id="migrarPanel" style="display:none;">
           <div class="dia-field">
@@ -588,14 +558,15 @@ table.mov-table textarea.cta{min-height:28px; padding:4px 6px;}
           <span id="migrarMsg" style="font-size:11px; color:var(--text-2);"></span>
         </div>
 
+        <div class="no-print" id="importarMsg" style="display:none; font-size:11px; margin-bottom:10px;"></div>
         <div class="mov-info no-print" id="movInfo"></div>
         <div class="mov-table-scroll">
           <table class="mov-table">
             <colgroup>
-              <col style="width:190px;"><col style="width:134px;"><col style="width:134px;">
+              <col style="width:120px;"><col style="width:100px;"><col style="width:100px;">
               <col style="width:150px;"><col style="width:230px;">
               <col style="width:150px;"><col style="width:230px;">
-              <col style="width:160px;"><col style="width:160px;"><col style="width:120px;">
+              <col style="width:140px;"><col style="width:160px;"><col style="width:120px;">
               <col style="width:220px;"><col class="no-print" style="width:40px;">
             </colgroup>
             <thead id="movThead"></thead>
@@ -987,9 +958,7 @@ function renderTablaSeguro(){
     else renderTabla();
   }, 0);
 }
-/* Hora/minuto elegidos a medias (solo hh o solo mm): se recuerdan en memoria para
-   que un re-render no los borre antes de completar el otro selector. */
-const horaParcial = {};
+
 document.addEventListener("focusout", (e)=>{
   if(!_renderTablaPendiente) return;
   const cont = document.getElementById("movTbody");
@@ -1106,10 +1075,25 @@ function parseDiaKey(fecha){
   if(!m) return 0;
   return parseInt("20"+m[3]+m[2]+m[1], 10);
 }
+/* Pasa "6.3", "6.30", "6,30" o "6:3" a "6:30", y "6" a "6:00". Si no tiene forma de hora,
+   devuelve el texto tal cual lo escribieron. */
+function normalizarHora(t){
+  const txt = String(t||"").trim();
+  const soloHora = txt.match(/^(\d{1,2})$/);
+  if(soloHora) return Number(soloHora[1]) <= 23 ? `${Number(soloHora[1])}:00` : txt;
+  const m = txt.match(/^(\d{1,2})\s*[.,:]\s*(\d{1,2})$/);
+  if(!m) return txt;
+  const h = Number(m[1]);
+  const mi = m[2].length === 1 ? Number(m[2]) * 10 : Number(m[2]);
+  if(h > 23 || mi > 59) return txt;
+  return `${h}:${String(mi).padStart(2,"0")}`;
+}
 function timeToMin(t){
-  if(!t) return null;
-  const [h,m] = t.split(":").map(Number);
-  return h*60 + (m||0);
+  const m = normalizarHora(t).match(/^(\d{1,2}):(\d{2})$/);
+  if(!m) return null;
+  const h = Number(m[1]), mi = Number(m[2]);
+  if(h > 23 || mi > 59) return null;
+  return h*60 + mi;
 }
 function formatARS(n){
   n = Number(n)||0;
@@ -1278,7 +1262,7 @@ async function calcularKmFila(fOrig){
     f.km = (Math.round(ruta * 10) / 10).toFixed(1);
     const rutaSospechosa = recta > 0.5 && ruta < recta * 1.3;
     f._kmEstado = rutaSospechosa
-      ? { texto: "⚠", color: "var(--warn-text)", title: `La ruta calculada (${f.km} km) es casi igual a la distancia en línea recta (${recta.toFixed(1)} km) — poco creíble manejando por calles. Verificá con el pin de Google Maps y corregí a mano si hace falta.` }
+      ? { texto: "⚠", color: "var(--warn-text)", title: `La ruta calculada (${f.km} km) es casi igual a la distancia en línea recta (${recta.toFixed(1)} km) — poco creíble manejando por calles. Compará las rutas con el botón de al lado y corregí a mano si hace falta.` }
       : null;
   } else {
     f.km = (Math.round(recta * FACTOR_RUTA * 10) / 10).toFixed(1);
@@ -1305,14 +1289,6 @@ function actualizarKmEnDom(f){
   });
 }
 
-/* Link de Google Maps entre partida y llegada. Si un punto fue marcado a mano en
-   el mapa se usan sus coordenadas (así Google compara contra el mismo lugar). */
-function googleMapsDirUrl(f){
-  const qp = textoConsulta(f, "partida"), ql = textoConsulta(f, "llegada");
-  if(!qp || !ql) return null;
-  const aParam = q => { const c = DATA.geo[geoKey(q)]; return (c && c.manual && c.lat != null) ? `${c.lat},${c.lng}` : q; };
-  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(aParam(qp))}&destination=${encodeURIComponent(aParam(ql))}&travelmode=driving`;
-}
 
 const ICON_MAPA = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 21C12 21 19 14.5 19 9.5C19 5.4 15.6 2 12 2C8.4 2 5 5.4 5 9.5C5 14.5 12 21 12 21Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.3" stroke="currentColor" stroke-width="1.6"/></svg>';
 const ICON_RUTA = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 19C4 19 4 15 8 15C12 15 12 9 16 9C19 9 20 6 20 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="4" cy="19" r="1.6" fill="currentColor"/><circle cx="20" cy="6" r="1.6" fill="currentColor"/></svg>';
@@ -1475,7 +1451,7 @@ async function mostrarRutaEnMapa(mv){
         <span style="flex:1;">★ <strong>${mediana.toFixed(1)} km</strong> — recomendado (mediana de ${valoresOk.length} motores)</span>
         <button type="button" class="btn-primary" data-usar-km="${mediana.toFixed(1)}" style="height:22px; font-size:10px; padding:0 8px; flex-shrink:0;">Usar este valor</button>
       </div>
-      ${spread > 0.3 ? `<div style="font-size:10px; color:var(--warn-text); margin-bottom:2px;">⚠ Los motores difieren bastante entre sí (más de 30%) — vale la pena chequear también con el pin de Google Maps.</div>` : ""}`;
+      ${spread > 0.3 ? `<div style="font-size:10px; color:var(--warn-text); margin-bottom:2px;">⚠ Los motores difieren bastante entre sí (más de 30%) — conviene revisar en el mapa cuál tiene sentido.</div>` : ""}`;
   }
 
   foot.innerHTML = `
@@ -1581,25 +1557,6 @@ document.getElementById("ubicModalAuto").addEventListener("click", async ()=>{
   else { renderTabla(); persistir(); }
 });
 
-/* Genera el par de <select> hora/minuto para Hora Inicio / Hora Fin. Se usan selects
-   nativos (no <input type="time">) porque el selector nativo de hora, en varios
-   celulares, precarga la hora actual apenas se toca el campo vacío y confirma ese
-   valor si no se llega a girar la rueda a tiempo. Con selects comunes no hay ningún
-   valor por defecto: quedan vacíos hasta que el usuario elige hora y minuto. */
-function renderTimeSelect(base, valor){
-  const [h, m] = (valor||"").split(":");
-  let optH = '<option value="">hh</option>';
-  for(let i=0;i<24;i++){ const v = String(i).padStart(2,"0"); optH += `<option value="${v}" ${v===h?"selected":""}>${v}</option>`; }
-  let optM = '<option value="">mm</option>';
-  for(let i=0;i<60;i++){ const v = String(i).padStart(2,"0"); optM += `<option value="${v}" ${v===m?"selected":""}>${v}</option>`; }
-  return `<div class="time-select-wrap">
-    <select class="time-select" data-field="${base}H">${optH}</select>
-    <span class="time-sep">:</span>
-    <select class="time-select" data-field="${base}M">${optM}</select>
-  </div>`;
-}
-
-
 /* ============================================================
    FECHAS
 ============================================================ */
@@ -1611,6 +1568,11 @@ function fechaADate(fecha){
   return new Date(2000+parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10));
 }
 /* "miércoles, 19 de agosto de 2026" (igual que la planilla de Excel) */
+function formatDiaCorto(fecha){
+  const dt = fechaADate(fecha);
+  if(!dt) return fecha || "";
+  return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getFullYear()).slice(-2)}`;
+}
 function formatDiaLargo(fecha){
   const dt = fechaADate(fecha);
   if(!dt) return fecha || "";
@@ -1690,7 +1652,7 @@ function filasOrdenadas(){
 ============================================================ */
 const VACIAS = "(Vacías)";
 const COLUMNAS = [
-  { key:"dia",        titulo:"Día",                       valor: f=> formatDiaLargo(f.fecha), orden: f=> parseDiaKey(f.fecha) },
+  { key:"dia",        titulo:"Día",                       valor: f=> formatDiaCorto(f.fecha), orden: f=> parseDiaKey(f.fecha) },
   { key:"horaIni",    titulo:"Hora Inicio",               valor: f=> f.horaIni },
   { key:"horaFin",    titulo:"Hora Fin",                  valor: f=> f.horaFin },
   { key:"partida",    titulo:"Punto de Partida",          valor: f=> f.partida.trim() },
@@ -1866,20 +1828,19 @@ function renderGeoBtn(f, cual){
 }
 function renderFila(f){
   const iso = fechaAIso(f.fecha);
-  const urlMaps = googleMapsDirUrl(f);
   return `
   <tr data-fila-id="${f.id}">
     <td data-label="Día">
       <div style="display:flex; align-items:center;">
         <div class="dia-cell" title="Cambiar fecha" style="flex:1; min-width:0;">
-          <span class="dia-txt ${f.fecha?"":"vacio"}">${f.fecha ? escHtml(formatDiaLargo(f.fecha)) : "Elegir fecha"}</span>
+          <span class="dia-txt ${f.fecha?"":"vacio"}">${f.fecha ? escHtml(formatDiaCorto(f.fecha)) : "Elegir fecha"}</span>
           <input type="date" data-field="fecha" value="${iso}">
         </div>
         ${badgeCarga(f)}
       </div>
     </td>
-    <td data-label="Hora Inicio">${renderTimeSelect("horaIni", f.horaIni || horaParcial[f.id+"horaIni"] || "")}</td>
-    <td data-label="Hora Fin">${renderTimeSelect("horaFin", f.horaFin || horaParcial[f.id+"horaFin"] || "")}</td>
+    <td data-label="Hora Inicio"><input type="text" data-field="horaIni" value="${escAttr(f.horaIni)}" placeholder="hh:mm" style="font-family:var(--mono);"></td>
+    <td data-label="Hora Fin"><input type="text" data-field="horaFin" value="${escAttr(f.horaFin)}" placeholder="hh:mm" style="font-family:var(--mono);"></td>
     <td data-label="Punto de Partida"><input type="text" data-field="partida" value="${escAttr(f.partida)}" placeholder="Ej: BT"></td>
     <td data-label="Dirección Punto de Partida">
       <div class="dir-cell"><input type="text" data-field="partidaDir" value="${escAttr(f.partidaDir)}" placeholder="Calle, altura, localidad">${renderGeoBtn(f,"partida")}</div>
@@ -1892,7 +1853,6 @@ function renderFila(f){
       <div class="km-row" style="display:flex; align-items:center; gap:3px;">
         <input type="text" data-field="km" value="${f.km!=null?escAttr(f.km):""}" placeholder="0.0" style="text-align:right; min-width:40px; flex:1 1 40px; font-family:var(--mono);" inputmode="decimal">
         <button type="button" class="btn-light no-print" data-action="recalc-km" title="Recalcular distancia entre puntos" style="height:24px; width:24px; padding:0; font-size:11px; flex-shrink:0; border:1px solid var(--border); border-radius:3px; cursor:pointer;">↻</button>
-        ${urlMaps ? `<a class="btn-light no-print" href="${urlMaps}" target="_blank" rel="noopener" title="Ver esta ruta en Google Maps (para comparar contra el km calculado)" style="height:24px; width:24px; display:inline-flex; align-items:center; justify-content:center; padding:0; flex-shrink:0; color:var(--text-2); border:1px solid var(--border); border-radius:3px;">${ICON_MAPA}</a>` : ""}
         <button type="button" class="btn-light no-print" data-action="ver-ruta-mapa" title="Comparar rutas calculadas por distintos motores gratuitos (OpenRouteService, OSRM)" style="height:24px; width:24px; display:inline-flex; align-items:center; justify-content:center; padding:0; flex-shrink:0; color:var(--text-2); border:1px solid var(--border); border-radius:3px; cursor:pointer;">${ICON_RUTA}</button>
         <span class="km-status no-print" style="font-size:12px; cursor:default; flex-shrink:0; color:${f._kmEstado?f._kmEstado.color:"var(--warn-text)"};" title="${escAttr(f._kmEstado?f._kmEstado.title:"")}">${f._kmEstado?f._kmEstado.texto:""}</span>
       </div>
@@ -2070,24 +2030,13 @@ movTbody.addEventListener("change", e=>{
     marcarCarga(f);
     renderTabla(); persistir(); return;
   }
-  if(field === "horaIniH" || field === "horaIniM" || field === "horaFinH" || field === "horaFinM"){
-    const base = field.slice(0, -1);
-    const selH = tr.querySelector(`select[data-field="${base}H"]`);
-    const selM = tr.querySelector(`select[data-field="${base}M"]`);
-    const h = selH ? selH.value : "", m = selM ? selM.value : "";
-    f[base] = (h !== "" && m !== "") ? (h+":"+m) : "";
-    if(f[base] || (h === "" && m === "")) delete horaParcial[f.id+base];
-    else horaParcial[f.id+base] = h + ":" + m;
-    const ini = timeToMin(f.horaIni), fin = timeToMin(f.horaFin);
-    if(ini != null && fin != null && fin < ini){
-      alert("La hora de fin no puede ser anterior a la hora de inicio.");
-      f[base] = "";
-      delete horaParcial[f.id+base];
-      if(selH) selH.value = "";
-      if(selM) selM.value = "";
-    }
+  if(field === "horaIni" || field === "horaFin"){
+    /* Texto libre, tal cual lo escriben. Para ordenar y para horas extra solo se
+       toma en cuenta si tiene forma de hora (h:mm / hh:mm); si no, se ignora. */
+    f[field] = normalizarHora(e.target.value);
+    e.target.value = f[field];
     marcarCarga(f);
-    persistir(); // sin re-render: el orden se actualiza en el próximo render
+    persistir();
     return;
   }
   if(field === "partida" || field === "llegada" || field === "partidaDir" || field === "llegadaDir"){
@@ -2169,6 +2118,206 @@ document.getElementById("btnActualizar").addEventListener("click", ()=>{
   setSyncStatus("En vivo","sync-ok");
 });
 document.getElementById("btnImprimir").addEventListener("click", ()=> window.print());
+
+
+/* ============================================================
+   IMPORTAR DESDE EXCEL (.xlsx / .xls / .csv)
+   Lee todas las hojas del archivo y busca en cada una la fila de encabezados
+   (por nombre de columna, sin importar mayúsculas, tildes ni el orden). Si hay
+   columna "Chofer" (como en la planilla que genera "Migrar a Excel"), cada fila
+   va a la planilla de ese chofer; si no, a la persona elegida arriba.
+   Las filas idénticas a una ya cargada se omiten. El km se toma del archivo
+   (no se recalcula solo, para no disparar cientos de consultas al mapa).
+============================================================ */
+function normEncabezado(s){
+  return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
+}
+const IMPORT_COLUMNAS = {
+  chofer:     ["chofer","persona"],
+  fecha:      ["dia","fecha"],
+  horaIni:    ["hora inicio","hora de inicio","inicio"],
+  horaFin:    ["hora fin","hora de fin","fin"],
+  partida:    ["punto de partida","partida"],
+  partidaDir: ["direccion punto de partida","direccion partida","direccion de partida"],
+  llegada:    ["punto de llegada","llegada"],
+  llegadaDir: ["direccion punto de llegada","direccion llegada","direccion de llegada"],
+  km:         ["km","kms","kilometros"],
+  gasto:      ["gasto extra","gastos extra","gasto"],
+  monto:      ["monto gasto extra","monto","monto gasto"],
+  obs:        ["observaciones","observacion","obs"]
+};
+function mapearEncabezados(fila){
+  const idx = {};
+  fila.forEach((celda, i)=>{
+    const n = normEncabezado(celda);
+    if(!n) return;
+    Object.entries(IMPORT_COLUMNAS).forEach(([campo, nombres])=>{
+      if(idx[campo] == null && nombres.includes(n)) idx[campo] = i;
+    });
+  });
+  return idx;
+}
+function pad2(n){ return String(n).padStart(2,"0"); }
+/* Día -> "dd/mm/aa" (formato interno). Acepta fecha de Excel, dd/mm/aaaa,
+   dd/mm/aa, aaaa-mm-dd y "miércoles, 19 de agosto de 2026". */
+function importarFecha(v){
+  if(v == null || v === "") return "";
+  if(typeof v === "number" && v > 20000){
+    const d = XLSX.SSF.parse_date_code(v);
+    if(d) return `${pad2(d.d)}/${pad2(d.m)}/${String(d.y).slice(-2)}`;
+  }
+  const t = String(v).trim();
+  let m = t.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2}|\d{4})$/);
+  if(m) return `${pad2(m[1])}/${pad2(m[2])}/${m[3].slice(-2)}`;
+  m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
+  m = normEncabezado(t).match(/(\d{1,2}) de ([a-z]+) de (\d{2,4})/);
+  if(m){
+    const mes = MESES_LARGO.indexOf(m[2]);
+    if(mes !== -1) return `${pad2(m[1])}/${pad2(mes+1)}/${m[3].slice(-2)}`;
+  }
+  return "";
+}
+/* Hora: si viene como hora de Excel se pasa a hh:mm; si es texto, queda tal cual. */
+function importarHora(v){
+  if(v == null || v === "") return "";
+  if(typeof v === "number"){
+    const frac = v % 1;
+    const tot = Math.round((frac === 0 && v < 24 ? v/24 : frac) * 1440);
+    return `${pad2(Math.floor(tot/60) % 24)}:${pad2(tot % 60)}`;
+  }
+  return normalizarHora(v);
+}
+function importarNumero(v){
+  if(v == null || v === "") return "";
+  if(typeof v === "number") return v;
+  const t = String(v).replace(/[$\s]/g,"");
+  if(!t) return "";
+  // "1.500,50" (es-AR) o "1500.5"
+  const n = t.includes(",") ? parseFloat(t.replace(/\./g,"").replace(",", ".")) : parseFloat(t);
+  return isNaN(n) ? "" : n;
+}
+function importarGasto(v){
+  const t = String(v||"").trim();
+  if(!t) return { tipo:"", detalle:"" };
+  const n = normEncabezado(t);
+  const tipo = GASTO_TIPOS.find(g=> normEncabezado(g) === n);
+  if(tipo) return { tipo, detalle:"" };
+  const mOtro = t.match(/^otro\s*\((.*)\)$/i);
+  if(mOtro) return { tipo:"Otro", detalle: mOtro[1].trim() };
+  if(n.includes("nafta") || n.includes("combustible")) return { tipo:"Combustible / Nafta", detalle:"" };
+  return { tipo:"Otro", detalle: t };
+}
+function claveFilaImport(f){
+  return [f.fecha, normalizarTexto(f.horaIni), normalizarTexto(f.partida), normalizarTexto(f.llegada),
+          String(Number(f.km)||""), String(Number(f.gastoMonto)||""), normalizarTexto(f.obs)].join("|");
+}
+
+function leerFilasDeLibro(wb){
+  const salida = [];   // { persona, fila }
+  const avisos = [];
+  let hojasLeidas = 0;
+  const permitidas = personasPermitidasActuales();
+  wb.SheetNames.forEach(nombre=>{
+    const ws = wb.Sheets[nombre];
+    const matriz = XLSX.utils.sheet_to_json(ws, { header:1, raw:true, defval:"" });
+    let hIdx = -1, cols = null;
+    for(let i=0; i<Math.min(matriz.length, 15); i++){
+      const c = mapearEncabezados(matriz[i]);
+      if(c.fecha != null && (c.partida != null || c.llegada != null)){ hIdx = i; cols = c; break; }
+    }
+    if(hIdx === -1) return;
+    hojasLeidas++;
+    const personaHoja = PERSONAS.find(p=> normEncabezado(nombre).includes(p));
+    matriz.slice(hIdx+1).forEach(r=>{
+      const get = campo => cols[campo] != null ? r[cols[campo]] : "";
+      const g = importarGasto(get("gasto"));
+      const f = {
+        id: uid(),
+        fecha: importarFecha(get("fecha")),
+        horaIni: importarHora(get("horaIni")),
+        horaFin: importarHora(get("horaFin")),
+        partida: String(get("partida")||"").trim(),
+        partidaDir: String(get("partidaDir")||"").trim(),
+        llegada: String(get("llegada")||"").trim(),
+        llegadaDir: String(get("llegadaDir")||"").trim(),
+        km: (()=>{ const n = importarNumero(get("km")); return n === "" ? "" : (Math.round(n*10)/10).toFixed(1); })(),
+        gastoTipo: g.tipo, gastoDetalle: g.detalle,
+        gastoMonto: importarNumero(get("monto")),
+        obs: String(get("obs")||"").trim(),
+        creadoTs: Date.now()
+      };
+      const vacia = !f.horaIni && !f.horaFin && !f.partida && !f.llegada && !f.partidaDir && !f.llegadaDir && !f.km && !f.gastoTipo && !f.obs;
+      if(vacia) return; // filas en blanco del Excel
+      if(!f.fecha){ avisos.push(`Hoja "${nombre}": una fila sin fecha válida se cargó igual, sin día.`); }
+      const chofer = normEncabezado(get("chofer"));
+      let persona = PERSONAS.find(p=> chofer === p) || personaHoja || movPersonaActual;
+      if(!permitidas.includes(persona)) persona = null;
+      salida.push({ persona, fila: f });
+    });
+  });
+  return { salida, avisos, hojasLeidas };
+}
+
+function mostrarImportMsg(texto, color){
+  const el = document.getElementById("importarMsg");
+  el.style.display = texto ? "block" : "none";
+  el.style.color = color || "var(--text-2)";
+  el.textContent = texto || "";
+}
+
+document.getElementById("btnImportar").addEventListener("click", ()=>{
+  document.getElementById("importarArchivo").value = "";
+  document.getElementById("importarArchivo").click();
+});
+document.getElementById("importarArchivo").addEventListener("change", async e=>{
+  const archivo = e.target.files && e.target.files[0];
+  if(!archivo) return;
+  try{
+    mostrarImportMsg("Leyendo archivo…");
+    const buf = await archivo.arrayBuffer();
+    const wb = XLSX.read(buf, { type:"array" });
+    const { salida, avisos, hojasLeidas } = leerFilasDeLibro(wb);
+    if(hojasLeidas === 0){
+      mostrarImportMsg(`No se encontró ninguna hoja con encabezados reconocibles. La primera fila de la tabla tiene que tener al menos "Día" y "Punto de Partida" (o "Punto de Llegada").`, "var(--err-text)");
+      return;
+    }
+    const existentes = {};
+    PERSONAS.forEach(p=> existentes[p] = new Set(DATA.movs[p].filas.map(claveFilaImport)));
+    const nuevas = { leo: [], tito: [] };
+    let repetidas = 0, sinPermiso = 0;
+    salida.forEach(({persona, fila})=>{
+      if(!persona){ sinPermiso++; return; }
+      const k = claveFilaImport(fila);
+      if(existentes[persona].has(k)){ repetidas++; return; }
+      existentes[persona].add(k);
+      nuevas[persona].push(fila);
+    });
+    const total = nuevas.leo.length + nuevas.tito.length;
+    if(total === 0){
+      mostrarImportMsg(`No hay filas nuevas para importar${repetidas?` (${repetidas} ya estaban cargadas)`:""}${sinPermiso?` · ${sinPermiso} de un chofer que tu usuario no puede ver`:""}.`, "var(--warn-text)");
+      return;
+    }
+    const detalle = PERSONAS.filter(p=> nuevas[p].length).map(p=> `${PERSONA_NOMBRE[p]}: ${nuevas[p].length}`).join(" · ");
+    const conf = `Se van a importar ${total} fila(s) (${detalle}).` +
+      (repetidas ? `\n${repetidas} fila(s) iguales a otras ya cargadas se omiten.` : "") +
+      (sinPermiso ? `\n${sinPermiso} fila(s) de un chofer que tu usuario no puede ver se omiten.` : "") +
+      "\n\n¿Seguir?";
+    if(!confirm(conf)){ mostrarImportMsg(""); return; }
+    PERSONAS.forEach(p=>{
+      nuevas[p].forEach(f=> marcarCarga(f));
+      DATA.movs[p].filas = nuevas[p].concat(DATA.movs[p].filas);
+    });
+    filtros = {};
+    renderTabla();
+    persistir();
+    const extra = avisos.length ? ` ${avisos.length} fila(s) sin fecha válida (quedaron sin día, podés completarlo a mano).` : "";
+    mostrarImportMsg(`Listo: se importaron ${total} fila(s) (${detalle}).${repetidas?` Se omitieron ${repetidas} repetidas.`:""}${extra} El km se tomó del archivo; para recalcularlo usá ↻ en cada fila.`, "var(--ok-text)");
+  }catch(err){
+    console.error(err);
+    mostrarImportMsg("No se pudo leer el archivo: " + (err && err.message ? err.message : err), "var(--err-text)");
+  }
+});
 
 /* ============================================================
    MIGRAR A EXCEL + GOOGLE SHEETS (Drive)
