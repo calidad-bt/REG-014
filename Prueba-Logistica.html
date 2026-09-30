@@ -333,7 +333,7 @@ tr.drag-over td{background:var(--accent-l); border-top:2px solid var(--accent);}
 .mov-info{font-family:var(--mono); font-size:11px; color:var(--text-2); display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
 .mov-info .btn{height:24px; font-size:11px; padding:0 8px;}
 .mov-table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:var(--radius);}
-table.mov-table{table-layout:fixed; min-width:1760px;}
+table.mov-table{table-layout:fixed; min-width:1474px;}
 table.mov-table th{border-top:none; vertical-align:middle; white-space:normal; line-height:1.3;}
 table.mov-table td{padding:5px 6px; vertical-align:middle;}
 .th-inner{display:flex; align-items:center; justify-content:space-between; gap:4px;}
@@ -364,6 +364,24 @@ table.mov-table td{padding:5px 6px; vertical-align:middle;}
 .monto-cell{display:flex; align-items:center; gap:2px; font-family:var(--mono); color:var(--text-2);}
 .monto-cell input{text-align:right; font-family:var(--mono);}
 table.mov-table textarea.cta{min-height:28px; padding:4px 6px;}
+
+.mini-btn{
+  height:24px; width:24px; padding:0; flex-shrink:0; border:1px solid var(--border); border-radius:3px;
+  background:#fff; color:var(--text-2); cursor:pointer; display:inline-flex; align-items:center; justify-content:center; font-size:11px;
+}
+.mini-btn:hover{filter:brightness(.95);}
+.km-inicio{font-family:var(--mono); font-size:11px; color:var(--text-3); padding:0 6px;}
+.orden-cell{padding:3px 4px !important;}
+.orden-wrap{display:flex; align-items:center; gap:3px; justify-content:center;}
+.orden-wrap .drag-handle{width:14px; font-size:12px;}
+.orden-btns{display:flex; flex-direction:column; gap:1px;}
+.orden-btns button{
+  width:22px; height:15px; padding:0; border:1px solid var(--border); border-radius:2px; background:#fff;
+  color:var(--text-2); font-size:8px; line-height:1; cursor:pointer;
+}
+.orden-btns button:hover:not([disabled]){background:var(--accent-l); color:var(--accent-d);}
+.orden-btns button[disabled]{opacity:.3; cursor:default;}
+table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
 
 /* ---------- PANEL DE FILTRO (tipo Excel) ---------- */
 .filtro-panel{
@@ -412,6 +430,8 @@ table.mov-table textarea.cta{min-height:28px; padding:4px 6px;}
   [data-action="del-usuario"]{width:30px !important; height:30px !important; font-size:15px !important;}
   .filtro-panel{left:8px !important; right:8px !important; width:auto !important; top:auto !important; bottom:8px !important;}
   input, select, textarea{font-size:16px;}
+  .orden-btns button{width:28px; height:20px; font-size:10px;}
+  .orden-wrap .drag-handle{display:none;}
 }
 
 /* ---------- PRINT ---------- */
@@ -563,11 +583,11 @@ table.mov-table textarea.cta{min-height:28px; padding:4px 6px;}
         <div class="mov-table-scroll">
           <table class="mov-table">
             <colgroup>
-              <col style="width:120px;"><col style="width:100px;"><col style="width:100px;">
-              <col style="width:150px;"><col style="width:230px;">
-              <col style="width:150px;"><col style="width:230px;">
-              <col style="width:140px;"><col style="width:160px;"><col style="width:120px;">
-              <col style="width:220px;"><col class="no-print" style="width:40px;">
+              <col class="no-print" style="width:54px;">
+              <col style="width:100px;"><col style="width:80px;">
+              <col style="width:180px;"><col style="width:230px;"><col style="width:150px;">
+              <col style="width:130px;"><col style="width:160px;"><col style="width:120px;">
+              <col style="width:230px;"><col class="no-print" style="width:40px;">
             </colgroup>
             <thead id="movThead"></thead>
             <tbody id="movTbody"></tbody>
@@ -803,7 +823,8 @@ const BIOTROM_DIR = "General Urquiza 428, C1215ADJ, Cdad. Autónoma de Buenos Ai
 /* ============================================================
    DATA MODEL
    Cada persona (Leo / Tito) tiene su propia planilla: DATA.movs.<persona>.filas,
-   una fila por viaje. DATA.geo guarda las coordenadas de cada dirección (clave =
+   una fila por lugar visitado (el km de cada fila es desde el lugar anterior del
+   mismo día; "orden" marca la secuencia del recorrido). DATA.geo guarda las coordenadas de cada dirección (clave =
    hash de la dirección normalizada), compartidas por todas las filas y personas:
    si una dirección se corrige a mano en el mapa, esa corrección se usa en todos
    los cálculos de km siguientes que usen la misma dirección.
@@ -862,24 +883,30 @@ function comoArray(x){
 
 
 function normalizeFilas(arr){
-  arr = comoArray(arr);
+  arr = comoArray(arr).filter(f=> f && typeof f === "object");
   arr.forEach((f,idx)=>{
     f.id = f.id || uid();
     f.fecha = f.fecha || "";
-    f.horaIni = f.horaIni || "";
-    f.horaFin = f.horaFin || "";
-    f.partida = f.partida || "";
-    f.partidaDir = f.partidaDir || "";
-    f.llegada = f.llegada || "";
-    f.llegadaDir = f.llegadaDir || "";
+    /* Compatibilidad con filas cargadas con el formato anterior (partida/llegada) */
+    if(f.lugar == null && (f.llegada != null || f.partida != null)){
+      f.lugar = f.llegada || f.partida || "";
+      f.direccion = f.llegadaDir || f.partidaDir || "";
+      f.hora = f.horaIni || "";
+    }
+    ["partida","partidaDir","llegada","llegadaDir","horaIni","horaFin"].forEach(k=> delete f[k]);
+    f.hora = f.hora || "";
+    f.lugar = f.lugar || "";
+    f.direccion = f.direccion || "";
+    f.localidad = f.localidad || "";
     f.km = f.km != null ? f.km : "";
     f.gastoTipo = f.gastoTipo || "";
     f.gastoDetalle = f.gastoDetalle || "";
     f.gastoMonto = f.gastoMonto != null ? f.gastoMonto : "";
     f.obs = f.obs || "";
     f.creadoTs = f.creadoTs != null ? f.creadoTs : idx;
+    f.orden = typeof f.orden === "number" ? f.orden : f.creadoTs;
   });
-  return arr.filter(f=> f && typeof f === "object");
+  return arr;
 }
 
 function normalizeData(d){
@@ -1075,10 +1102,22 @@ function parseDiaKey(fecha){
   if(!m) return 0;
   return parseInt("20"+m[3]+m[2]+m[1], 10);
 }
-/* Pasa "6.3", "6.30", "6,30" o "6:3" a "6:30", y "6" a "6:00". Si no tiene forma de hora,
+/* Pasa "6.3", "6.30", "6,30" o "6:3" a "6:30", "6" a "6:00" y "7:00 PM" a "19:00". Si no tiene forma de hora,
    devuelve el texto tal cual lo escribieron. */
 function normalizarHora(t){
   const txt = String(t||"").trim();
+  /* "6:00 AM", "7:00AM", "7 PM", "19:00PM" -> 24 hs */
+  const ampm = txt.match(/^(.*?)\s*([ap])\.?\s*m\.?$/i);
+  if(ampm && ampm[1]){
+    const mm = normalizarHora(ampm[1]).match(/^(\d{1,2}):(\d{2})$/);
+    if(mm){
+      let h = Number(mm[1]);
+      const pm = ampm[2].toLowerCase() === "p";
+      if(pm && h < 12) h += 12;
+      if(!pm && h === 12) h = 0;
+      return `${h}:${mm[2]}`;
+    }
+  }
   const soloHora = txt.match(/^(\d{1,2})$/);
   if(soloHora) return Number(soloHora[1]) <= 23 ? `${Number(soloHora[1])}:00` : txt;
   const m = txt.match(/^(\d{1,2})\s*[.,:]\s*(\d{1,2})$/);
@@ -1167,7 +1206,7 @@ function prioridadZona(props){
   if(region === "buenos aires" || region === "provincia de buenos aires" || regionA === "ba" || regionA === "b") return 1;
   return 2;
 }
-async function geocodeDireccion(direccion){
+async function geocodeDireccion(direccion, localidadPref){
   if(!direccion || !direccion.trim()) return { error: "sin-direccion" };
   try{
     const url = `${ORS_BASE}/pelias/v1/search?api_key=${encodeURIComponent(ORS_API_KEY)}&text=${encodeURIComponent(direccion)}&boundary.country=AR&focus.point.lat=${CABA_CENTRO.lat}&focus.point.lon=${CABA_CENTRO.lng}&lang=es&size=10`;
@@ -1182,7 +1221,15 @@ async function geocodeDireccion(direccion){
     const candidatos = feats
       .map((f, i)=> ({ f, i, prio: prioridadZona(f.properties||{}) }))
       .filter(c=> conf(c.f) >= mejorConf - 0.15);
-    candidatos.sort((a,b)=> a.prio - b.prio || a.i - b.i);
+    /* Si la fila tiene una localidad (que no sea CABA), primero van los resultados
+       que caen en esa localidad; después, la prioridad por zona. */
+    const lp = localidadPref ? normGeo(localidadPref) : "";
+    const enLocalidad = f=>{
+      if(!lp) return 0;
+      const p = f.properties || {};
+      return normGeo([p.locality, p.localadmin, p.county, p.neighbourhood, p.borough, p.label].join(" | ")).includes(lp) ? 0 : 1;
+    };
+    candidatos.sort((a,b)=> enLocalidad(a.f) - enLocalidad(b.f) || a.prio - b.prio || a.i - b.i);
     const f = candidatos[0].f;
     return { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0], nombre: f.properties.label };
   }catch(e){
@@ -1198,39 +1245,78 @@ function haversineKm(lat1,lng1,lat2,lng2){
 }
 
 /* ============================================================
-   UBICACIÓN DE CADA PUNTO (por dirección escrita en la fila)
-   Se busca la "Dirección" de la fila; si está vacía, el nombre del punto.
-   Las coordenadas se guardan en DATA.geo por dirección, así la misma
-   dirección no se vuelve a buscar y una corrección hecha a mano en el mapa
-   vale para todas las filas que usen esa dirección.
+   UBICACIÓN DE CADA LUGAR
+   Cada fila es un lugar visitado. Se busca "Dirección, Localidad"; si no hay
+   dirección, "Lugar, Localidad". Las coordenadas se guardan en DATA.geo por
+   texto buscado, así no se vuelve a buscar y una corrección hecha a mano en el
+   mapa vale para todas las filas que usen esa misma dirección.
 ============================================================ */
 const GASTO_TIPOS = ["Estacionamiento","Combustible / Nafta","Peaje","Encomiendas","Otro"];
 const geoErrores = {}; // clave -> mensaje (solo en memoria; se reintenta al recargar)
+const rutaCache = {};  // "claveA>claveB" -> km (solo en memoria)
 
 function normalizarTexto(s){ return (s||"").trim().toLowerCase().replace(/\s+/g," "); }
 function esBiotrom(s){ const t = normalizarTexto(s); return t === "bt" || t === "biotrom"; }
+function esCaba(loc){
+  const t = normGeo(loc).replace(/\./g,"").replace(/\s+/g," ");
+  return ["caba","capital","capital federal","ciudad de buenos aires","ciudad autonoma de buenos aires"].includes(t);
+}
+/* Localidad para la búsqueda: "CABA" se expande a su nombre completo. */
+function localidadConsulta(loc){
+  loc = (loc||"").trim();
+  if(!loc) return "";
+  return esCaba(loc) ? "Ciudad Autónoma de Buenos Aires" : loc;
+}
+/* Localidad que se usa para preferir resultados (vacía si es CABA: ahí ya
+   manda la prioridad CABA > Provincia > resto). */
+function localidadPreferida(f){
+  const loc = (f.localidad||"").trim();
+  return loc && !esCaba(loc) ? loc : "";
+}
 function geoKey(texto){
   const t = normalizarTexto(texto);
   let h = 5381;
   for(let i=0;i<t.length;i++){ h = ((h << 5) + h + t.charCodeAt(i)) >>> 0; }
   return "g" + h.toString(16) + "_" + t.length;
 }
-/* Texto que se usa para ubicar el punto "partida" o "llegada" de una fila. */
-function textoConsulta(f, cual){
-  const dir = (f[cual+"Dir"]||"").trim();
-  if(dir) return dir;
-  const nom = (f[cual]||"").trim();
-  if(esBiotrom(nom)) return BIOTROM_DIR;
-  return nom;
+/* Texto con el que se ubica en el mapa el lugar de una fila. */
+function textoConsulta(f){
+  if(!f) return "";
+  const dir = (f.direccion||"").trim(), lug = (f.lugar||"").trim();
+  const loc = localidadConsulta(f.localidad);
+  if(dir) return loc ? `${dir}, ${loc}` : dir;
+  if(esBiotrom(lug)) return BIOTROM_DIR;
+  if(lug) return loc ? `${lug}, ${loc}` : lug;
+  return loc;
 }
-function nombreVisible(f, cual){ return (f[cual]||"").trim() || (f[cual+"Dir"]||"").trim() || (cual === "partida" ? "Partida" : "Llegada"); }
+function nombreVisible(f){ return (f.lugar||"").trim() || (f.direccion||"").trim() || (f.localidad||"").trim() || "Lugar"; }
 
-async function coordsDeTexto(texto){
+/* Filas de un día en el orden del recorrido. */
+function filasDelDia(persona, fecha){
+  return DATA.movs[persona].filas.filter(x=> x.fecha === fecha)
+    .sort((a,b)=> (a.orden||0) - (b.orden||0) || (a.creadoTs||0) - (b.creadoTs||0));
+}
+function filaAnterior(f, persona){
+  const dia = filasDelDia(persona || movPersonaActual, f.fecha);
+  const i = dia.findIndex(x=> x.id === f.id);
+  return i > 0 ? dia[i-1] : null;
+}
+function filaSiguiente(f, persona){
+  const dia = filasDelDia(persona || movPersonaActual, f.fecha);
+  const i = dia.findIndex(x=> x.id === f.id);
+  return i !== -1 && i < dia.length - 1 ? dia[i+1] : null;
+}
+function siguienteOrden(persona, fecha){
+  const dia = filasDelDia(persona, fecha);
+  return dia.length ? Math.max(...dia.map(x=> x.orden||0)) + 1 : 1;
+}
+
+async function coordsDeTexto(texto, locPref){
   if(!texto || !texto.trim()) return { error: "sin-direccion" };
   const k = geoKey(texto);
   const c = DATA.geo[k];
   if(c && c.lat != null && c.lng != null) return { lat: c.lat, lng: c.lng, manual: !!c.manual };
-  const r = await geocodeDireccion(texto);
+  const r = await geocodeDireccion(texto, locPref);
   if(r && !r.error){
     DATA.geo[k] = { dir: texto.trim(), lat: r.lat, lng: r.lng, manual: false, resuelto: r.nombre || "" };
     delete geoErrores[k];
@@ -1246,10 +1332,10 @@ function mensajeErrorCoords(c, nombre){
   const det = c.detalle ? ` (detalle técnico: ${c.detalle})` : "";
   return `No se pudo consultar "${nombre}" (sin conexión o servicio no disponible)${det}.`;
 }
-/* Estado del pin de ubicación de un punto: "manual" | "ok" | "err" | "" */
-function estadoGeo(f, cual){
-  const q = textoConsulta(f, cual);
-  if(!q) return { cls:"", title:"Cargá el punto o la dirección" };
+/* Estado del pin de ubicación de una fila: "manual" | "" | "err" */
+function estadoGeo(f){
+  const q = textoConsulta(f);
+  if(!q) return { cls:"", title:"Cargá el lugar o la dirección" };
   const k = geoKey(q);
   const c = DATA.geo[k];
   if(c && c.lat != null){
@@ -1260,30 +1346,45 @@ function estadoGeo(f, cual){
   return { cls:"", title:"Tocá para ver o corregir la ubicación en el mapa" };
 }
 
-async function calcularKmFila(fOrig){
-  const persona = movPersonaActual, filaId = fOrig.id;
+/* Km de una fila = distancia desde el lugar anterior del mismo día.
+   El primer lugar del día no suma km. */
+async function calcularKmFila(fOrig, opts){
+  opts = opts || {};
+  const persona = opts.persona || movPersonaActual, filaId = fOrig.id;
   /* Entre await y await puede llegar el eco de Firebase y reemplazar DATA entero:
      siempre se vuelve a buscar la fila por id antes de escribirle el resultado. */
-  const filaActual = ()=> DATA.movs[persona].filas.find(x=>x.id===filaId) || fOrig;
-  let f = fOrig;
-  const qp = textoConsulta(f, "partida");
-  const ql = textoConsulta(f, "llegada");
+  const filaActual = ()=> DATA.movs[persona].filas.find(x=>x.id===filaId) || null;
+  const terminar = f=>{ actualizarKmEnDom(f); renderTablaSeguro(); if(!opts.sinGuardar) persistir(); };
+  let f = filaActual();
+  if(!f) return;
+  const prev = filaAnterior(f, persona);
+  if(!prev){
+    if(f.km !== "" || f._kmEstado){ f.km = ""; f._kmEstado = null; terminar(f); }
+    return;
+  }
+  const qp = textoConsulta(prev), ql = textoConsulta(f);
   if(!qp || !ql) return;
   const kmInputEl = document.querySelector(`#movTbody tr[data-fila-id="${f.id}"] input[data-field="km"]`);
-  if(kmInputEl) kmInputEl.value = "...";
-  const cp = await coordsDeTexto(qp);
-  const cl = await coordsDeTexto(ql);
+  if(kmInputEl && persona === movPersonaActual) kmInputEl.value = "...";
+  const cp = await coordsDeTexto(qp, localidadPreferida(prev));
+  const cl = await coordsDeTexto(ql, localidadPreferida(f));
   f = filaActual();
+  if(!f) return;
   const err = mensajeErrorCoords(cp, qp) || mensajeErrorCoords(cl, ql);
   if(err){
-    if(f.km === "...") f.km = "";
     f._kmEstado = { texto: "⚠", color: "var(--err-text)", title: err };
-    actualizarKmEnDom(f); renderTablaSeguro(); persistir();
+    terminar(f);
     return;
   }
   const recta = haversineKm(cp.lat, cp.lng, cl.lat, cl.lng);
-  const ruta = await distanciaRutaKm(cp, cl);
+  const kc = `${cp.lat.toFixed(5)},${cp.lng.toFixed(5)}>${cl.lat.toFixed(5)},${cl.lng.toFixed(5)}`;
+  let ruta = rutaCache[kc];
+  if(ruta == null){
+    ruta = recta < 0.05 ? 0 : await distanciaRutaKm(cp, cl);
+    if(ruta != null) rutaCache[kc] = ruta;
+  }
   f = filaActual();
+  if(!f) return;
   if(ruta != null){
     f.km = (Math.round(ruta * 10) / 10).toFixed(1);
     const rutaSospechosa = recta > 0.5 && ruta < recta * 1.3;
@@ -1294,8 +1395,22 @@ async function calcularKmFila(fOrig){
     f.km = (Math.round(recta * FACTOR_RUTA * 10) / 10).toFixed(1);
     f._kmEstado = { texto: "≈", color: "var(--warn-text)", title: "Estimado por distancia recta (el servicio de rutas no respondió). Podés corregirlo a mano si conocés el km real." };
   }
-  actualizarKmEnDom(f); renderTablaSeguro(); persistir();
+  terminar(f);
 }
+/* Recalcula varias filas una detrás de otra (para no saturar el servicio gratuito). */
+async function recalcularKmFilas(filas, opts){
+  opts = opts || {};
+  for(let i=0; i<filas.length; i++){
+    await calcularKmFila(filas[i], { ...opts, sinGuardar: true });
+    if(opts.progreso) opts.progreso(i+1, filas.length);
+    if((i+1) % 10 === 0) persistir();
+  }
+  persistir();
+}
+function recalcularDia(persona, fecha){
+  return recalcularKmFilas(filasDelDia(persona, fecha), { persona });
+}
+
 /* Refleja el km recién calculado en la fila visible sin esperar al re-render
    (que puede quedar demorado si el usuario sigue escribiendo en la planilla). */
 function actualizarKmEnDom(f){
@@ -1309,12 +1424,9 @@ function actualizarKmEnDom(f){
     st.title = f._kmEstado ? f._kmEstado.title : "";
     st.style.color = f._kmEstado ? f._kmEstado.color : "var(--warn-text)";
   }
-  ["partida","llegada"].forEach(cual=>{
-    const b = tr.querySelector(`[data-action="ajustar-ubicacion"][data-cual="${cual}"]`);
-    if(b){ const e = estadoGeo(f, cual); b.className = `geo-btn no-print ${e.cls}`; b.title = e.title; }
-  });
+  const b = tr.querySelector('[data-action="ajustar-ubicacion"]');
+  if(b){ const e = estadoGeo(f); b.className = `geo-btn no-print ${e.cls}`; b.title = e.title; }
 }
-
 
 const ICON_MAPA = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 21C12 21 19 14.5 19 9.5C19 5.4 15.6 2 12 2C8.4 2 5 5.4 5 9.5C5 14.5 12 21 12 21Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.3" stroke="currentColor" stroke-width="1.6"/></svg>';
 const ICON_RUTA = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 19C4 19 4 15 8 15C12 15 12 9 16 9C19 9 20 6 20 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="4" cy="19" r="1.6" fill="currentColor"/><circle cx="20" cy="6" r="1.6" fill="currentColor"/></svg>';
@@ -1399,9 +1511,11 @@ function medianaDe(valores){
    compararlos a simple vista y, si se quiere, usar directamente el km de
    cualquiera de ellos con un botón. No modifica nada hasta que se elige uno. */
 async function mostrarRutaEnMapa(mv){
-  const qp = textoConsulta(mv, "partida"), ql = textoConsulta(mv, "llegada");
+  const prev = filaAnterior(mv);
+  if(!prev) return;
+  const qp = textoConsulta(prev), ql = textoConsulta(mv);
   if(!qp || !ql) return;
-  const p = { nombre: nombreVisible(mv, "partida") }, l = { nombre: nombreVisible(mv, "llegada") };
+  const p = { nombre: nombreVisible(prev) }, l = { nombre: nombreVisible(mv) };
   rutaModalMovActual = mv;
   const overlay = document.getElementById("rutaModalOverlay");
   const sub = document.getElementById("rutaModalSub");
@@ -1415,8 +1529,8 @@ async function mostrarRutaEnMapa(mv){
   rutaTodosLosBounds = [];
   mapDiv.innerHTML = "";
 
-  const cp = await coordsDeTexto(qp);
-  const cl = await coordsDeTexto(ql);
+  const cp = await coordsDeTexto(qp, localidadPreferida(prev));
+  const cl = await coordsDeTexto(ql, localidadPreferida(mv));
   const err = mensajeErrorCoords(cp, qp) || mensajeErrorCoords(cl, ql);
   if(err){ foot.innerHTML = `<span style="color:var(--err-text);">${escAttr(err)}</span>`; return; }
 
@@ -1516,32 +1630,33 @@ document.getElementById("rutaModalOverlay").addEventListener("click", e=>{
 });
 
 /* ============================================================
-   CORREGIR UBICACIÓN DE UN PUNTO EN EL MAPA
+   CORREGIR UBICACIÓN DE UN LUGAR EN EL MAPA
    Se arrastra (o se toca) el marcador hasta el lugar correcto. La corrección
    queda guardada para esa dirección y tiene prioridad sobre la búsqueda
-   automática; al guardar se recalcula el km de la fila.
+   automática; al guardar se recalculan los km que dependen de ese lugar
+   (el de esa fila y el de la fila siguiente del día).
 ============================================================ */
-let ubicLeafletMap = null, ubicLeafletMarker = null, ubicAjusteActual = null; // { filaId, cual, texto }
+let ubicLeafletMap = null, ubicLeafletMarker = null, ubicAjusteActual = null; // { filaId, texto }
 function cerrarUbicModal(){
   document.getElementById("ubicModalOverlay").classList.remove("abierto");
   if(ubicLeafletMap){ ubicLeafletMap.remove(); ubicLeafletMap = null; ubicLeafletMarker = null; }
   ubicAjusteActual = null;
 }
-async function abrirAjusteUbicacion(f, cual){
-  const texto = textoConsulta(f, cual);
-  if(!texto){ alert("Primero cargá el punto o su dirección."); return; }
-  ubicAjusteActual = { filaId: f.id, cual, texto };
+async function abrirAjusteUbicacion(f){
+  const texto = textoConsulta(f);
+  if(!texto){ alert("Primero cargá el lugar o su dirección."); return; }
+  ubicAjusteActual = { filaId: f.id, texto };
   const overlay = document.getElementById("ubicModalOverlay");
   const sub = document.getElementById("ubicModalSub");
   const mapDiv = document.getElementById("ubicModalMap");
   overlay.classList.add("abierto");
-  const nom = (f[cual]||"").trim();
+  const nom = (f.lugar||"").trim();
   sub.textContent = (nom && normalizarTexto(nom) !== normalizarTexto(texto)) ? `${nom} — ${texto}` : texto;
   if(ubicLeafletMap){ ubicLeafletMap.remove(); ubicLeafletMap = null; }
   mapDiv.innerHTML = "";
 
   let lat, lng;
-  const c = await coordsDeTexto(texto);
+  const c = await coordsDeTexto(texto, localidadPreferida(f));
   if(c && !c.error){ lat = c.lat; lng = c.lng; }
   else { lat = -34.6037; lng = -58.3816; } // centro de CABA si no se encontró
   if(!ubicAjusteActual || ubicAjusteActual.filaId !== f.id) return; // se cerró mientras buscaba
@@ -1554,6 +1669,12 @@ async function abrirAjusteUbicacion(f, cual){
   ubicLeafletMarker = L.marker([lat, lng], { draggable: true }).addTo(ubicLeafletMap);
   ubicLeafletMap.on("click", ev=> ubicLeafletMarker.setLatLng(ev.latlng));
   setTimeout(()=>{ if(ubicLeafletMap) ubicLeafletMap.invalidateSize(); }, 60);
+}
+function filasAfectadasPorLugar(f){
+  const lista = [f];
+  const sig = filaSiguiente(f);
+  if(sig) lista.push(sig);
+  return lista;
 }
 document.getElementById("ubicModalClose").addEventListener("click", cerrarUbicModal);
 document.getElementById("ubicModalOverlay").addEventListener("click", e=>{
@@ -1570,7 +1691,7 @@ document.getElementById("ubicModalGuardar").addEventListener("click", ()=>{
   const f = buscarFila(aj.filaId);
   renderTabla();
   persistir();
-  if(f) calcularKmFila(f);
+  if(f) recalcularKmFilas(filasAfectadasPorLugar(f));
 });
 document.getElementById("ubicModalAuto").addEventListener("click", async ()=>{
   if(!ubicAjusteActual) return;
@@ -1579,7 +1700,7 @@ document.getElementById("ubicModalAuto").addEventListener("click", async ()=>{
   delete DATA.geo[geoKey(aj.texto)];
   cerrarUbicModal();
   const f = buscarFila(aj.filaId);
-  if(f) await calcularKmFila(f);
+  if(f) await recalcularKmFilas(filasAfectadasPorLugar(f));
   else { renderTabla(); persistir(); }
 });
 
@@ -1593,12 +1714,12 @@ function fechaADate(fecha){
   if(!m) return null;
   return new Date(2000+parseInt(m[3],10), parseInt(m[2],10)-1, parseInt(m[1],10));
 }
-/* "miércoles, 19 de agosto de 2026" (igual que la planilla de Excel) */
 function formatDiaCorto(fecha){
   const dt = fechaADate(fecha);
   if(!dt) return fecha || "";
   return `${String(dt.getDate()).padStart(2,"0")}/${String(dt.getMonth()+1).padStart(2,"0")}/${String(dt.getFullYear()).slice(-2)}`;
 }
+/* "miércoles, 19 de agosto de 2026" (para la migración a Excel) */
 function formatDiaLargo(fecha){
   const dt = fechaADate(fecha);
   if(!dt) return fecha || "";
@@ -1620,8 +1741,9 @@ function textoGasto(f){
 
 /* ============================================================
    DÍAS A PARTIR DE LAS FILAS (para horas extra, Pagos y migración)
-   Cada día es { id, fecha, movimientos:[filas] }. El id se arma con la fecha
-   (d20260819), así la configuración de Pagos por día queda atada a la fecha.
+   Cada día es { id, fecha, movimientos:[filas en orden del recorrido] }. El id
+   se arma con la fecha (d20260819), así la configuración de Pagos por día
+   queda atada a la fecha.
 ============================================================ */
 function diasDesdeFilas(persona){
   const porFecha = {};
@@ -1629,47 +1751,36 @@ function diasDesdeFilas(persona){
     const k = parseDiaKey(f.fecha);
     if(!k) return;
     if(!porFecha[k]) porFecha[k] = { id: "d"+k, fecha: f.fecha, movimientos: [] };
-    porFecha[k].movimientos.push(f);
   });
-  return Object.values(porFecha);
+  return Object.values(porFecha).map(d=>{ d.movimientos = filasDelDia(persona, d.fecha); return d; });
 }
+/* Horas extra del día: antes de las 8:00 (primera hora cargada) y después de
+   las 19:00 (última hora cargada). Las horas que no tienen forma de hora se ignoran. */
 function computeDiaTotals(dia){
   let kmTotal = 0, gastoTotal = 0;
-  let minIni = null, maxFin = null;
+  let minH = null, maxH = null;
   dia.movimientos.forEach(f=>{
     kmTotal += Number(f.km) || 0;
     gastoTotal += Number(f.gastoMonto) || 0;
-    const ini = timeToMin(f.horaIni);
-    const fin = timeToMin(f.horaFin);
-    if(ini !== null && (minIni === null || ini < minIni)) minIni = ini;
-    if(fin !== null && (maxFin === null || fin > maxFin)) maxFin = fin;
+    const t = timeToMin(f.hora);
+    if(t !== null){
+      if(minH === null || t < minH) minH = t;
+      if(maxH === null || t > maxH) maxH = t;
+    }
   });
   const NORMAL_INI = 8*60, NORMAL_FIN = 19*60;
   let heAuto = 0;
-  if(minIni !== null) heAuto += Math.max(0, NORMAL_INI - minIni) / 60;
-  if(maxFin !== null) heAuto += Math.max(0, maxFin - NORMAL_FIN) / 60;
+  if(minH !== null) heAuto += Math.max(0, NORMAL_INI - minH) / 60;
+  if(maxH !== null) heAuto += Math.max(0, maxH - NORMAL_FIN) / 60;
   return { kmTotal, gastoTotal, heAuto };
 }
-function ordenarPorHoraInicio(filas){
-  return [...filas].sort((a,b)=>{
-    const ta = timeToMin(a.horaIni), tb = timeToMin(b.horaIni);
-    if(ta === null && tb === null) return (b.creadoTs||0) - (a.creadoTs||0);
-    if(ta === null) return -1;
-    if(tb === null) return 1;
-    return ta - tb;
-  });
-}
-/* Orden de la planilla: día más reciente arriba; dentro del día, por hora de inicio
-   (las filas recién agregadas, sin hora todavía, quedan primero). */
+/* Orden de la planilla: día más reciente arriba; dentro del día, el orden del recorrido. */
 function filasOrdenadas(){
   return [...DATA.movs[movPersonaActual].filas].sort((a,b)=>{
     const df = parseDiaKey(b.fecha) - parseDiaKey(a.fecha);
     if(df !== 0) return df;
-    const ta = timeToMin(a.horaIni), tb = timeToMin(b.horaIni);
-    if(ta === null && tb === null) return (b.creadoTs||0) - (a.creadoTs||0);
-    if(ta === null) return -1;
-    if(tb === null) return 1;
-    return ta - tb;
+    if(a.fecha !== b.fecha) return a.fecha < b.fecha ? -1 : 1; // fechas inválidas agrupadas
+    return (a.orden||0) - (b.orden||0) || (a.creadoTs||0) - (b.creadoTs||0);
   });
 }
 
@@ -1678,17 +1789,15 @@ function filasOrdenadas(){
 ============================================================ */
 const VACIAS = "(Vacías)";
 const COLUMNAS = [
-  { key:"dia",        titulo:"Día",                       valor: f=> formatDiaCorto(f.fecha), orden: f=> parseDiaKey(f.fecha) },
-  { key:"horaIni",    titulo:"Hora Inicio",               valor: f=> f.horaIni },
-  { key:"horaFin",    titulo:"Hora Fin",                  valor: f=> f.horaFin },
-  { key:"partida",    titulo:"Punto de Partida",          valor: f=> f.partida.trim() },
-  { key:"partidaDir", titulo:"Dirección Punto de Partida",valor: f=> f.partidaDir.trim() },
-  { key:"llegada",    titulo:"Punto de Llegada",          valor: f=> f.llegada.trim() },
-  { key:"llegadaDir", titulo:"Dirección Punto de Llegada",valor: f=> f.llegadaDir.trim() },
-  { key:"km",         titulo:"Km",                        valor: f=> f.km !== "" && f.km != null ? String(f.km) : "", orden: f=> Number(f.km)||0 },
-  { key:"gasto",      titulo:"Gasto Extra",               valor: f=> textoGasto(f) },
-  { key:"monto",      titulo:"Monto Gasto Extra",         valor: f=> f.gastoMonto !== "" && f.gastoMonto != null && Number(f.gastoMonto) ? formatMonto(f.gastoMonto) : "", orden: f=> Number(f.gastoMonto)||0 },
-  { key:"obs",        titulo:"Observaciones",             valor: f=> f.obs.trim() }
+  { key:"dia",       titulo:"Día",               valor: f=> formatDiaCorto(f.fecha), orden: f=> parseDiaKey(f.fecha) },
+  { key:"hora",      titulo:"Hora",              valor: f=> (f.hora||"").trim() },
+  { key:"lugar",     titulo:"Lugar",             valor: f=> (f.lugar||"").trim() },
+  { key:"direccion", titulo:"Dirección",         valor: f=> (f.direccion||"").trim() },
+  { key:"localidad", titulo:"Localidad",         valor: f=> (f.localidad||"").trim() },
+  { key:"km",        titulo:"Km",                valor: f=> f.km !== "" && f.km != null ? String(f.km) : "", orden: f=> Number(f.km)||0 },
+  { key:"gasto",     titulo:"Gasto Extra",       valor: f=> textoGasto(f) },
+  { key:"monto",     titulo:"Monto Gasto Extra", valor: f=> f.gastoMonto !== "" && f.gastoMonto != null && Number(f.gastoMonto) ? formatMonto(f.gastoMonto) : "", orden: f=> Number(f.gastoMonto)||0 },
+  { key:"obs",       titulo:"Observaciones",     valor: f=> (f.obs||"").trim() }
 ];
 let filtros = {}; // colKey -> Set de valores permitidos (solo en esta sesión)
 function valorFiltro(col, f){ const v = col.valor(f); return v === "" ? VACIAS : v; }
@@ -1703,7 +1812,7 @@ function pasaFiltros(f, excepto){
 const ICON_FILTRO = '<svg width="10" height="10" viewBox="0 0 10 10"><path d="M0.5 1h9L6 5.2V9L4 8V5.2z" fill="currentColor"/></svg>';
 
 function renderThead(){
-  document.getElementById("movThead").innerHTML = `<tr>${COLUMNAS.map(col=>`
+  document.getElementById("movThead").innerHTML = `<tr><th class="no-print" title="Orden del recorrido"></th>${COLUMNAS.map(col=>`
     <th><div class="th-inner"><span title="${escAttr(col.titulo)}">${col.titulo}</span>
       <button type="button" class="th-filter no-print ${filtros[col.key]?"on":""}" data-filtro="${col.key}" title="Filtrar">${ICON_FILTRO}</button>
     </div></th>`).join("")}<th class="no-print"></th></tr>`;
@@ -1833,29 +1942,54 @@ function renderTabla(){
   const tbody = document.getElementById("movTbody");
   const todas = filasOrdenadas();
   const visibles = todas.filter(f=> pasaFiltros(f));
+  // Primer y último lugar de cada día (sobre todas las filas, no solo las filtradas)
+  const primeras = new Set(), ultimas = new Set();
+  const porFecha = {};
+  todas.forEach(f=>{ (porFecha[f.fecha] = porFecha[f.fecha] || []).push(f); });
+  Object.values(porFecha).forEach(l=>{ primeras.add(l[0].id); ultimas.add(l[l.length-1].id); });
   if(todas.length === 0){
-    tbody.innerHTML = `<tr><td colspan="12" class="empty-hint">Sin movimientos cargados. Usá "+ Agregar fila" para comenzar.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty-hint">Sin movimientos cargados. Usá "+ Agregar fila" para comenzar.</td></tr>`;
   } else if(visibles.length === 0){
-    tbody.innerHTML = `<tr><td colspan="12" class="empty-hint">Ninguna fila coincide con los filtros.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11" class="empty-hint">Ninguna fila coincide con los filtros.</td></tr>`;
   } else {
-    tbody.innerHTML = visibles.map(renderFila).join("");
+    let fechaAnt = null;
+    tbody.innerHTML = visibles.map(f=>{
+      const nuevoDia = f.fecha !== fechaAnt;
+      fechaAnt = f.fecha;
+      return renderFila(f, { primera: primeras.has(f.id), ultima: ultimas.has(f.id), nuevoDia });
+    }).join("");
     tbody.querySelectorAll("textarea.cta").forEach(autoGrow);
   }
   const info = document.getElementById("movInfo");
   info.innerHTML = hayFiltros()
-    ? `<span>Mostrando ${visibles.length} de ${todas.length} filas (con filtros)</span><button type="button" class="btn btn-light" id="btnLimpiarFiltros">Quitar todos los filtros</button>`
+    ? `<span>Mostrando ${visibles.length} de ${todas.length} filas (con filtros). Para reordenar el recorrido, quitá los filtros.</span><button type="button" class="btn btn-light" id="btnLimpiarFiltros">Quitar todos los filtros</button>`
     : "";
   renderKPIs(visibles);
 }
 
-function renderGeoBtn(f, cual){
-  const st = estadoGeo(f, cual);
-  return `<button type="button" class="geo-btn no-print ${st.cls}" data-action="ajustar-ubicacion" data-cual="${cual}" title="${escAttr(st.title)}">${ICON_MAPA}</button>`;
-}
-function renderFila(f){
+function renderFila(f, pos){
   const iso = fechaAIso(f.fecha);
+  const st = estadoGeo(f);
+  const reordenar = !hayFiltros();
+  const kmCelda = pos.primera
+    ? `<span class="km-inicio" title="Primer lugar del día: arranca acá, no suma km">— inicio</span>`
+    : `<div class="km-row" style="display:flex; align-items:center; gap:3px;">
+        <input type="text" data-field="km" value="${f.km!=null?escAttr(f.km):""}" placeholder="0.0" style="text-align:right; min-width:40px; flex:1 1 40px; font-family:var(--mono);" inputmode="decimal" title="Km desde el lugar anterior del día">
+        <button type="button" class="mini-btn no-print" data-action="recalc-km" title="Recalcular km desde el lugar anterior">↻</button>
+        <button type="button" class="mini-btn no-print" data-action="ver-ruta-mapa" title="Comparar rutas desde el lugar anterior (OpenRouteService, OSRM)">${ICON_RUTA}</button>
+        <span class="km-status no-print" style="font-size:12px; cursor:default; flex-shrink:0; color:${f._kmEstado?f._kmEstado.color:"var(--warn-text)"};" title="${escAttr(f._kmEstado?f._kmEstado.title:"")}">${f._kmEstado?f._kmEstado.texto:""}</span>
+      </div>`;
   return `
-  <tr data-fila-id="${f.id}">
+  <tr data-fila-id="${f.id}" data-fecha="${escAttr(f.fecha)}" class="${pos.nuevoDia?"dia-inicio":""}">
+    <td class="orden-cell no-print" data-label="Orden">
+      ${reordenar ? `<div class="orden-wrap">
+        <span class="drag-handle" draggable="true" title="Arrastrar para cambiar el orden del recorrido">⋮⋮</span>
+        <div class="orden-btns">
+          <button type="button" data-action="subir" title="Subir" ${pos.primera?"disabled":""}>▲</button>
+          <button type="button" data-action="bajar" title="Bajar" ${pos.ultima?"disabled":""}>▼</button>
+        </div>
+      </div>` : ""}
+    </td>
     <td data-label="Día">
       <div style="display:flex; align-items:center;">
         <div class="dia-cell" title="Cambiar fecha" style="flex:1; min-width:0;">
@@ -1865,24 +1999,13 @@ function renderFila(f){
         ${badgeCarga(f)}
       </div>
     </td>
-    <td data-label="Hora Inicio"><input type="text" data-field="horaIni" value="${escAttr(f.horaIni)}" placeholder="hh:mm" style="font-family:var(--mono);"></td>
-    <td data-label="Hora Fin"><input type="text" data-field="horaFin" value="${escAttr(f.horaFin)}" placeholder="hh:mm" style="font-family:var(--mono);"></td>
-    <td data-label="Punto de Partida"><input type="text" data-field="partida" value="${escAttr(f.partida)}" placeholder="Ej: BT"></td>
-    <td data-label="Dirección Punto de Partida">
-      <div class="dir-cell"><input type="text" data-field="partidaDir" value="${escAttr(f.partidaDir)}" placeholder="Calle, altura, localidad">${renderGeoBtn(f,"partida")}</div>
+    <td data-label="Hora"><input type="text" data-field="hora" value="${escAttr(f.hora)}" placeholder="hh:mm" style="font-family:var(--mono);"></td>
+    <td data-label="Lugar"><input type="text" data-field="lugar" value="${escAttr(f.lugar)}" placeholder="Ej: Zerox"></td>
+    <td data-label="Dirección">
+      <div class="dir-cell"><input type="text" data-field="direccion" value="${escAttr(f.direccion)}" placeholder="Calle y altura"><button type="button" class="geo-btn no-print ${st.cls}" data-action="ajustar-ubicacion" title="${escAttr(st.title)}">${ICON_MAPA}</button></div>
     </td>
-    <td data-label="Punto de Llegada"><input type="text" data-field="llegada" value="${escAttr(f.llegada)}" placeholder="Ej: Clínica..."></td>
-    <td data-label="Dirección Punto de Llegada">
-      <div class="dir-cell"><input type="text" data-field="llegadaDir" value="${escAttr(f.llegadaDir)}" placeholder="Calle, altura, localidad">${renderGeoBtn(f,"llegada")}</div>
-    </td>
-    <td data-label="Km">
-      <div class="km-row" style="display:flex; align-items:center; gap:3px;">
-        <input type="text" data-field="km" value="${f.km!=null?escAttr(f.km):""}" placeholder="0.0" style="text-align:right; min-width:40px; flex:1 1 40px; font-family:var(--mono);" inputmode="decimal">
-        <button type="button" class="btn-light no-print" data-action="recalc-km" title="Recalcular distancia entre puntos" style="height:24px; width:24px; padding:0; font-size:11px; flex-shrink:0; border:1px solid var(--border); border-radius:3px; cursor:pointer;">↻</button>
-        <button type="button" class="btn-light no-print" data-action="ver-ruta-mapa" title="Comparar rutas calculadas por distintos motores gratuitos (OpenRouteService, OSRM)" style="height:24px; width:24px; display:inline-flex; align-items:center; justify-content:center; padding:0; flex-shrink:0; color:var(--text-2); border:1px solid var(--border); border-radius:3px; cursor:pointer;">${ICON_RUTA}</button>
-        <span class="km-status no-print" style="font-size:12px; cursor:default; flex-shrink:0; color:${f._kmEstado?f._kmEstado.color:"var(--warn-text)"};" title="${escAttr(f._kmEstado?f._kmEstado.title:"")}">${f._kmEstado?f._kmEstado.texto:""}</span>
-      </div>
-    </td>
+    <td data-label="Localidad"><input type="text" data-field="localidad" value="${escAttr(f.localidad)}" placeholder="Ej: CABA"></td>
+    <td data-label="Km">${kmCelda}</td>
     <td data-label="Gasto Extra">
       <div class="gasto-cell">
         <select data-field="gastoTipo">
@@ -1953,19 +2076,25 @@ document.getElementById("pagosPersonaSwitch").addEventListener("click", e=>{
 /* ============================================================
    EVENTOS DE LA PLANILLA
 ============================================================ */
-document.getElementById("btnNuevaFila").addEventListener("click", ()=>{
-  const f = {
-    id: uid(), fecha: hoyDDMMAA(), horaIni:"", horaFin:"",
-    partida:"", partidaDir:"", llegada:"", llegadaDir:"", km:"",
+function nuevaFila(fecha){
+  return {
+    id: uid(), fecha, orden: siguienteOrden(movPersonaActual, fecha), hora:"",
+    lugar:"", direccion:"", localidad:"", km:"",
     gastoTipo:"", gastoDetalle:"", gastoMonto:"", obs:"", creadoTs: Date.now()
   };
+}
+document.getElementById("btnNuevaFila").addEventListener("click", ()=>{
+  const f = nuevaFila(hoyDDMMAA());
   marcarCarga(f);
-  DATA.movs[movPersonaActual].filas.unshift(f);
+  DATA.movs[movPersonaActual].filas.push(f);
   if(hayFiltros()){ filtros = {}; } // si no, la fila nueva podría quedar oculta
   renderTabla();
   persistir();
-  const primera = document.querySelector(`#movTbody tr[data-fila-id="${f.id}"] input[data-field="partida"]`);
-  if(primera && window.innerWidth > 720) primera.focus();
+  const inp = document.querySelector(`#movTbody tr[data-fila-id="${f.id}"] input[data-field="lugar"]`);
+  if(inp){
+    inp.closest("tr").scrollIntoView({ block:"nearest" });
+    if(window.innerWidth > 720) inp.focus();
+  }
 });
 
 document.getElementById("movInfo").addEventListener("click", e=>{
@@ -1977,25 +2106,47 @@ function filaDeEvento(e){
   const tr = e.target.closest("tr[data-fila-id]");
   return tr ? buscarFila(tr.getAttribute("data-fila-id")) : null;
 }
-/* Si el punto se escribió y la dirección está vacía, se completa con la última
-   dirección usada para ese mismo punto (en cualquiera de las dos planillas), o
-   con la de Biotrom si el punto es "BT". */
-function autocompletarDireccion(f, cual){
-  if((f[cual+"Dir"]||"").trim()) return;
-  const nom = normalizarTexto(f[cual]);
+/* Si se escribe un lugar y la dirección / localidad están vacías, se completan
+   con las últimas usadas para ese mismo lugar (en cualquiera de las dos
+   planillas), o con la dirección de Biotrom si el lugar es "BT". */
+function autocompletarLugar(f){
+  const nom = normalizarTexto(f.lugar);
   if(!nom) return;
+  const faltaDir = !(f.direccion||"").trim(), faltaLoc = !(f.localidad||"").trim();
+  if(!faltaDir && !faltaLoc) return;
   let mejor = null;
   PERSONAS.forEach(p=> DATA.movs[p].filas.forEach(o=>{
-    if(o.id === f.id) return;
-    ["partida","llegada"].forEach(c=>{
-      if(normalizarTexto(o[c]) === nom && (o[c+"Dir"]||"").trim()){
-        const ts = o._cargadoTs || o.creadoTs || 0;
-        if(!mejor || ts > mejor.ts) mejor = { dir: o[c+"Dir"].trim(), ts };
-      }
-    });
+    if(o.id === f.id || normalizarTexto(o.lugar) !== nom) return;
+    if(!(o.direccion||"").trim() && !(o.localidad||"").trim()) return;
+    const ts = o._cargadoTs || o.creadoTs || 0;
+    if(!mejor || ts > mejor.ts) mejor = { dir: (o.direccion||"").trim(), loc: (o.localidad||"").trim(), ts };
   }));
-  if(mejor) f[cual+"Dir"] = mejor.dir;
-  else if(esBiotrom(f[cual])) f[cual+"Dir"] = BIOTROM_DIR;
+  if(mejor){
+    if(faltaDir && mejor.dir) f.direccion = mejor.dir;
+    if(faltaLoc && mejor.loc) f.localidad = mejor.loc;
+  } else if(esBiotrom(f.lugar) && faltaDir){
+    f.direccion = "General Urquiza 428";
+    if(faltaLoc) f.localidad = "CABA";
+  }
+}
+
+/* Reordena el recorrido de un día: mueve la fila "id" a la posición "destino"
+   (índice dentro del día) y recalcula los km del día. */
+function moverFila(id, destino){
+  const f = buscarFila(id);
+  if(!f) return;
+  const dia = filasDelDia(movPersonaActual, f.fecha);
+  const desde = dia.findIndex(x=>x.id===id);
+  if(desde === -1) return;
+  destino = Math.max(0, Math.min(dia.length-1, destino));
+  if(desde === destino) return;
+  dia.splice(desde, 1);
+  dia.splice(destino, 0, f);
+  dia.forEach((x,i)=>{ x.orden = i+1; });
+  marcarCarga(f);
+  renderTabla();
+  persistir();
+  recalcularDia(movPersonaActual, f.fecha);
 }
 
 movTbody.addEventListener("click", e=>{
@@ -2012,21 +2163,70 @@ movTbody.addEventListener("click", e=>{
   if(!f) return;
   if(action === "del-fila"){
     if(!confirm("¿Eliminar esta fila?")) return;
+    const sig = filaSiguiente(f);
     DATA.movs[movPersonaActual].filas = DATA.movs[movPersonaActual].filas.filter(x=>x.id!==f.id);
-    renderTabla(); persistir(); return;
+    renderTabla(); persistir();
+    if(sig) calcularKmFila(sig);
+    return;
+  }
+  if(action === "subir" || action === "bajar"){
+    const dia = filasDelDia(movPersonaActual, f.fecha);
+    const i = dia.findIndex(x=>x.id===f.id);
+    moverFila(f.id, action === "subir" ? i-1 : i+1);
+    return;
   }
   if(action === "recalc-km"){
-    if(!textoConsulta(f,"partida") || !textoConsulta(f,"llegada")){ alert("Cargá el punto de partida y el de llegada (o sus direcciones)."); return; }
+    const prev = filaAnterior(f);
+    if(!prev || !textoConsulta(prev) || !textoConsulta(f)){ alert("Cargá este lugar y el anterior del día (o sus direcciones)."); return; }
     marcarCarga(f);
     calcularKmFila(f); return;
   }
   if(action === "ver-ruta-mapa"){
-    if(!textoConsulta(f,"partida") || !textoConsulta(f,"llegada")){ alert("Cargá el punto de partida y el de llegada (o sus direcciones)."); return; }
+    const prev = filaAnterior(f);
+    if(!prev || !textoConsulta(prev) || !textoConsulta(f)){ alert("Cargá este lugar y el anterior del día (o sus direcciones)."); return; }
     mostrarRutaEnMapa(f); return;
   }
   if(action === "ajustar-ubicacion"){
-    abrirAjusteUbicacion(f, actEl.getAttribute("data-cual")); return;
+    abrirAjusteUbicacion(f); return;
   }
+});
+
+/* --- Arrastrar para reordenar (solo dentro del mismo día) --- */
+let filaArrastrada = null;
+movTbody.addEventListener("dragstart", e=>{
+  const h = e.target.closest && e.target.closest(".drag-handle");
+  if(!h){ return; }
+  const tr = h.closest("tr[data-fila-id]");
+  filaArrastrada = { id: tr.getAttribute("data-fila-id"), fecha: tr.getAttribute("data-fecha") };
+  tr.classList.add("dragging");
+  e.dataTransfer.effectAllowed = "move";
+  try{ e.dataTransfer.setData("text/plain", filaArrastrada.id); }catch(err){}
+});
+movTbody.addEventListener("dragend", ()=>{
+  movTbody.querySelectorAll("tr.dragging, tr.drag-over").forEach(x=> x.classList.remove("dragging","drag-over"));
+  filaArrastrada = null;
+});
+movTbody.addEventListener("dragover", e=>{
+  if(!filaArrastrada) return;
+  const tr = e.target.closest("tr[data-fila-id]");
+  if(!tr || tr.getAttribute("data-fecha") !== filaArrastrada.fecha) return;
+  e.preventDefault();
+  movTbody.querySelectorAll("tr.drag-over").forEach(x=> x.classList.remove("drag-over"));
+  if(tr.getAttribute("data-fila-id") !== filaArrastrada.id) tr.classList.add("drag-over");
+});
+movTbody.addEventListener("drop", e=>{
+  if(!filaArrastrada) return;
+  const tr = e.target.closest("tr[data-fila-id]");
+  if(!tr || tr.getAttribute("data-fecha") !== filaArrastrada.fecha) return;
+  e.preventDefault();
+  const destinoId = tr.getAttribute("data-fila-id");
+  const id = filaArrastrada.id;
+  filaArrastrada = null;
+  if(destinoId === id) return;
+  const f = buscarFila(id);
+  if(!f) return;
+  const dia = filasDelDia(movPersonaActual, f.fecha);
+  moverFila(id, dia.findIndex(x=>x.id===destinoId));
 });
 
 movTbody.addEventListener("input", e=>{
@@ -2052,33 +2252,38 @@ movTbody.addEventListener("change", e=>{
   if(field === "fecha"){
     if(!e.target.value) return;
     const [y,m,d] = e.target.value.split("-");
-    f.fecha = d+"/"+m+"/"+y.slice(-2);
+    const nueva = d+"/"+m+"/"+y.slice(-2);
+    if(nueva === f.fecha) return;
+    const sigVieja = filaSiguiente(f);
+    f.orden = siguienteOrden(movPersonaActual, nueva);
+    f.fecha = nueva;
     marcarCarga(f);
-    renderTabla(); persistir(); return;
+    renderTabla(); persistir();
+    (async ()=>{ if(sigVieja) await calcularKmFila(sigVieja); await calcularKmFila(f); })();
+    return;
   }
-  if(field === "horaIni" || field === "horaFin"){
-    /* Texto libre, tal cual lo escriben. Para ordenar y para horas extra solo se
-       toma en cuenta si tiene forma de hora (h:mm / hh:mm); si no, se ignora. */
-    f[field] = normalizarHora(e.target.value);
-    e.target.value = f[field];
+  if(field === "hora"){
+    /* Texto libre. "6", "6.3", "6.30" o "6,30" se pasan a formato hora (6:00 / 6:30). */
+    f.hora = normalizarHora(e.target.value);
+    e.target.value = f.hora;
     marcarCarga(f);
     persistir();
     return;
   }
-  if(field === "partida" || field === "llegada" || field === "partidaDir" || field === "llegadaDir"){
-    const cual = field.startsWith("partida") ? "partida" : "llegada";
-    const antes = textoConsulta(f, "partida") + "|" + textoConsulta(f, "llegada");
-    f[field] = e.target.value;
-    if(field === cual){
-      autocompletarDireccion(f, cual);
-      const dirInp = tr.querySelector(`input[data-field="${cual}Dir"]`);
-      if(dirInp && dirInp !== document.activeElement) dirInp.value = f[cual+"Dir"];
+  if(field === "lugar" || field === "direccion" || field === "localidad"){
+    const antes = textoConsulta(f);
+    f[field] = e.target.value.trim();
+    if(field === "lugar"){
+      autocompletarLugar(f);
+      ["direccion","localidad"].forEach(c=>{
+        const inp = tr.querySelector(`input[data-field="${c}"]`);
+        if(inp && inp !== document.activeElement) inp.value = f[c];
+      });
     }
     marcarCarga(f);
-    const despues = textoConsulta(f, "partida") + "|" + textoConsulta(f, "llegada");
     renderTablaSeguro();
     persistir();
-    if(antes !== despues && textoConsulta(f,"partida") && textoConsulta(f,"llegada")) calcularKmFila(f);
+    if(antes !== textoConsulta(f) && textoConsulta(f)) recalcularKmFilas(filasAfectadasPorLugar(f));
     return;
   }
   if(field === "km"){
@@ -2149,28 +2354,27 @@ document.getElementById("btnImprimir").addEventListener("click", ()=> window.pri
 /* ============================================================
    IMPORTAR DESDE EXCEL (.xlsx / .xls / .csv)
    Lee todas las hojas del archivo y busca en cada una la fila de encabezados
-   (por nombre de columna, sin importar mayúsculas, tildes ni el orden). Si hay
-   columna "Chofer" (como en la planilla que genera "Migrar a Excel"), cada fila
-   va a la planilla de ese chofer; si no, a la persona elegida arriba.
-   Las filas idénticas a una ya cargada se omiten. El km se toma del archivo
-   (no se recalcula solo, para no disparar cientos de consultas al mapa).
+   (por nombre de columna, sin importar mayúsculas, tildes ni el orden):
+   Fecha/Día · Hora · Lugar · Dirección · Localidad · Km · Gasto Extra · Monto ·
+   Observaciones · Chofer. Si hay columna "Chofer", cada fila va a la planilla de
+   ese chofer; si no, a la persona elegida arriba. Dentro de cada día se respeta
+   el orden de las filas del archivo (es el orden del recorrido).
+   Las filas idénticas a una ya cargada se omiten.
 ============================================================ */
 function normEncabezado(s){
   return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
 }
 const IMPORT_COLUMNAS = {
-  chofer:     ["chofer","persona"],
-  fecha:      ["dia","fecha"],
-  horaIni:    ["hora inicio","hora de inicio","inicio"],
-  horaFin:    ["hora fin","hora de fin","fin"],
-  partida:    ["punto de partida","partida"],
-  partidaDir: ["direccion punto de partida","direccion partida","direccion de partida"],
-  llegada:    ["punto de llegada","llegada"],
-  llegadaDir: ["direccion punto de llegada","direccion llegada","direccion de llegada"],
-  km:         ["km","kms","kilometros"],
-  gasto:      ["gasto extra","gastos extra","gasto"],
-  monto:      ["monto gasto extra","monto","monto gasto"],
-  obs:        ["observaciones","observacion","obs"]
+  chofer:    ["chofer","persona"],
+  fecha:     ["dia","fecha"],
+  hora:      ["hora","hora dia","horario","hora inicio"],
+  lugar:     ["lugar","punto","destino","punto de llegada"],
+  direccion: ["direccion","domicilio","direccion punto de llegada"],
+  localidad: ["localidad","ciudad","partido"],
+  km:        ["km","kms","kilometros"],
+  gasto:     ["gasto extra","gastos extra","gasto"],
+  monto:     ["monto gasto extra","monto","monto gasto"],
+  obs:       ["observaciones","observacion","obs"]
 };
 function mapearEncabezados(fila){
   const idx = {};
@@ -2184,8 +2388,9 @@ function mapearEncabezados(fila){
   return idx;
 }
 function pad2(n){ return String(n).padStart(2,"0"); }
+const MESES_ABR_IMPORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 /* Día -> "dd/mm/aa" (formato interno). Acepta fecha de Excel, dd/mm/aaaa,
-   dd/mm/aa, aaaa-mm-dd y "miércoles, 19 de agosto de 2026". */
+   dd/mm/aa, aaaa-mm-dd, "3-ago" (año actual) y "miércoles, 19 de agosto de 2026". */
 function importarFecha(v){
   if(v == null || v === "") return "";
   if(typeof v === "number" && v > 20000){
@@ -2197,20 +2402,29 @@ function importarFecha(v){
   if(m) return `${pad2(m[1])}/${pad2(m[2])}/${m[3].slice(-2)}`;
   m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if(m) return `${m[3]}/${m[2]}/${m[1].slice(-2)}`;
-  m = normEncabezado(t).match(/(\d{1,2}) de ([a-z]+) de (\d{2,4})/);
+  const n = normEncabezado(t);
+  m = n.match(/(\d{1,2}) de ([a-z]+) de (\d{2,4})/);
   if(m){
     const mes = MESES_LARGO.indexOf(m[2]);
     if(mes !== -1) return `${pad2(m[1])}/${pad2(mes+1)}/${m[3].slice(-2)}`;
   }
+  m = n.match(/^(\d{1,2}) ([a-z]{3})[a-z]*(?: (\d{2,4}))?$/);
+  if(m){
+    const mes = MESES_ABR_IMPORT.indexOf(m[2]);
+    const anio = m[3] ? m[3].slice(-2) : String(new Date().getFullYear()).slice(-2);
+    if(mes !== -1) return `${pad2(m[1])}/${pad2(mes+1)}/${anio}`;
+  }
   return "";
 }
-/* Hora: si viene como hora de Excel se pasa a hh:mm; si es texto, queda tal cual. */
+/* Hora: si viene como hora de Excel se pasa a h:mm; si es texto se normaliza
+   igual que al escribirla (6 -> 6:00, 6.30 -> 6:30, 6:00 AM -> 6:00). */
 function importarHora(v){
   if(v == null || v === "") return "";
   if(typeof v === "number"){
     const frac = v % 1;
-    const tot = Math.round((frac === 0 && v < 24 ? v/24 : frac) * 1440);
-    return `${pad2(Math.floor(tot/60) % 24)}:${pad2(tot % 60)}`;
+    if(frac === 0 && v <= 23) return `${v}:00`;
+    const tot = Math.round(frac * 1440);
+    return `${Math.floor(tot/60) % 24}:${pad2(tot % 60)}`;
   }
   return normalizarHora(v);
 }
@@ -2219,7 +2433,6 @@ function importarNumero(v){
   if(typeof v === "number") return v;
   const t = String(v).replace(/[$\s]/g,"");
   if(!t) return "";
-  // "1.500,50" (es-AR) o "1500.5"
   const n = t.includes(",") ? parseFloat(t.replace(/\./g,"").replace(",", ".")) : parseFloat(t);
   return isNaN(n) ? "" : n;
 }
@@ -2232,17 +2445,18 @@ function importarGasto(v){
   const mOtro = t.match(/^otro\s*\((.*)\)$/i);
   if(mOtro) return { tipo:"Otro", detalle: mOtro[1].trim() };
   if(n.includes("nafta") || n.includes("combustible")) return { tipo:"Combustible / Nafta", detalle:"" };
+  if(n.includes("peaje")) return { tipo:"Peaje", detalle:"" };
+  if(n.includes("estacionamiento")) return { tipo:"Estacionamiento", detalle:"" };
   return { tipo:"Otro", detalle: t };
 }
 function claveFilaImport(f){
-  return [f.fecha, normalizarTexto(f.horaIni), normalizarTexto(f.partida), normalizarTexto(f.llegada),
-          String(Number(f.km)||""), String(Number(f.gastoMonto)||""), normalizarTexto(f.obs)].join("|");
+  return [f.fecha, normalizarTexto(f.hora), normalizarTexto(f.lugar), normalizarTexto(f.direccion),
+          normalizarTexto(f.localidad), String(Number(f.gastoMonto)||""), normalizarTexto(f.obs)].join("|");
 }
 
 function leerFilasDeLibro(wb){
   const salida = [];   // { persona, fila }
-  const avisos = [];
-  let hojasLeidas = 0;
+  let sinFecha = 0, hojasLeidas = 0;
   const permitidas = personasPermitidasActuales();
   wb.SheetNames.forEach(nombre=>{
     const ws = wb.Sheets[nombre];
@@ -2250,7 +2464,7 @@ function leerFilasDeLibro(wb){
     let hIdx = -1, cols = null;
     for(let i=0; i<Math.min(matriz.length, 15); i++){
       const c = mapearEncabezados(matriz[i]);
-      if(c.fecha != null && (c.partida != null || c.llegada != null)){ hIdx = i; cols = c; break; }
+      if(c.fecha != null && (c.lugar != null || c.direccion != null)){ hIdx = i; cols = c; break; }
     }
     if(hIdx === -1) return;
     hojasLeidas++;
@@ -2261,28 +2475,28 @@ function leerFilasDeLibro(wb){
       const f = {
         id: uid(),
         fecha: importarFecha(get("fecha")),
-        horaIni: importarHora(get("horaIni")),
-        horaFin: importarHora(get("horaFin")),
-        partida: String(get("partida")||"").trim(),
-        partidaDir: String(get("partidaDir")||"").trim(),
-        llegada: String(get("llegada")||"").trim(),
-        llegadaDir: String(get("llegadaDir")||"").trim(),
+        hora: importarHora(get("hora")),
+        lugar: String(get("lugar")||"").trim(),
+        direccion: String(get("direccion")||"").trim(),
+        localidad: String(get("localidad")||"").trim(),
         km: (()=>{ const n = importarNumero(get("km")); return n === "" ? "" : (Math.round(n*10)/10).toFixed(1); })(),
         gastoTipo: g.tipo, gastoDetalle: g.detalle,
         gastoMonto: importarNumero(get("monto")),
         obs: String(get("obs")||"").trim(),
         creadoTs: Date.now()
       };
-      const vacia = !f.horaIni && !f.horaFin && !f.partida && !f.llegada && !f.partidaDir && !f.llegadaDir && !f.km && !f.gastoTipo && !f.obs;
+      const vacia = !f.lugar && !f.direccion && !f.localidad && !f.hora && !f.gastoTipo && !f.obs;
       if(vacia) return; // filas en blanco del Excel
-      if(!f.fecha){ avisos.push(`Hoja "${nombre}": una fila sin fecha válida se cargó igual, sin día.`); }
+      // Filas de totales ("DIAS=", "Viajes=", ...): tienen texto en la columna de fecha pero no es una fecha
+      if(!f.fecha && String(get("fecha")||"").trim()) return;
+      if(!f.fecha) sinFecha++;
       const chofer = normEncabezado(get("chofer"));
       let persona = PERSONAS.find(p=> chofer === p) || personaHoja || movPersonaActual;
       if(!permitidas.includes(persona)) persona = null;
       salida.push({ persona, fila: f });
     });
   });
-  return { salida, avisos, hojasLeidas };
+  return { salida, sinFecha, hojasLeidas };
 }
 
 function mostrarImportMsg(texto, color){
@@ -2303,13 +2517,19 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
     mostrarImportMsg("Leyendo archivo…");
     const buf = await archivo.arrayBuffer();
     const wb = XLSX.read(buf, { type:"array" });
-    const { salida, avisos, hojasLeidas } = leerFilasDeLibro(wb);
+    const { salida, sinFecha, hojasLeidas } = leerFilasDeLibro(wb);
     if(hojasLeidas === 0){
-      mostrarImportMsg(`No se encontró ninguna hoja con encabezados reconocibles. La primera fila de la tabla tiene que tener al menos "Día" y "Punto de Partida" (o "Punto de Llegada").`, "var(--err-text)");
+      mostrarImportMsg(`No se encontró ninguna hoja con encabezados reconocibles. La fila de títulos tiene que tener al menos "Fecha" (o "Día") y "Lugar" (o "Dirección").`, "var(--err-text)");
       return;
     }
     const existentes = {};
-    PERSONAS.forEach(p=> existentes[p] = new Set(DATA.movs[p].filas.map(claveFilaImport)));
+    /* Se compara contra la fila tal como vino en el Excel (_importClave) y contra
+       cómo quedó cargada, así reimportar el mismo archivo no duplica filas aunque
+       después se les haya completado la dirección. */
+    PERSONAS.forEach(p=>{
+      existentes[p] = new Set();
+      DATA.movs[p].filas.forEach(f=>{ existentes[p].add(claveFilaImport(f)); if(f._importClave) existentes[p].add(f._importClave); });
+    });
     const nuevas = { leo: [], tito: [] };
     let repetidas = 0, sinPermiso = 0;
     salida.forEach(({persona, fila})=>{
@@ -2317,6 +2537,7 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
       const k = claveFilaImport(fila);
       if(existentes[persona].has(k)){ repetidas++; return; }
       existentes[persona].add(k);
+      fila._importClave = k;
       nuevas[persona].push(fila);
     });
     const total = nuevas.leo.length + nuevas.tito.length;
@@ -2331,14 +2552,34 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
       "\n\n¿Seguir?";
     if(!confirm(conf)){ mostrarImportMsg(""); return; }
     PERSONAS.forEach(p=>{
-      nuevas[p].forEach(f=> marcarCarga(f));
-      DATA.movs[p].filas = nuevas[p].concat(DATA.movs[p].filas);
+      // Orden del recorrido: a continuación de lo que ya hubiera cargado ese día
+      const proximo = {};
+      nuevas[p].forEach(f=>{
+        if(proximo[f.fecha] == null) proximo[f.fecha] = siguienteOrden(p, f.fecha);
+        f.orden = proximo[f.fecha]++;
+        marcarCarga(f);
+      });
+      DATA.movs[p].filas = DATA.movs[p].filas.concat(nuevas[p]);
     });
+    // Lugares sin dirección/localidad: se completan con lo último usado para ese lugar
+    PERSONAS.forEach(p=> nuevas[p].forEach(f=> autocompletarLugar(f)));
     filtros = {};
     renderTabla();
     persistir();
-    const extra = avisos.length ? ` ${avisos.length} fila(s) sin fecha válida (quedaron sin día, podés completarlo a mano).` : "";
-    mostrarImportMsg(`Listo: se importaron ${total} fila(s) (${detalle}).${repetidas?` Se omitieron ${repetidas} repetidas.`:""}${extra} El km se tomó del archivo; para recalcularlo usá ↻ en cada fila.`, "var(--ok-text)");
+    const avisoFecha = sinFecha ? ` ${sinFecha} fila(s) sin fecha válida (quedaron sin día, podés completarlo a mano).` : "";
+    mostrarImportMsg(`Se importaron ${total} fila(s) (${detalle}).${repetidas?` Se omitieron ${repetidas} repetidas.`:""}${avisoFecha}`, "var(--ok-text)");
+
+    const sinKm = [];
+    PERSONAS.forEach(p=> nuevas[p].forEach(f=>{ if(f.km === "" && f.fecha) sinKm.push({ p, f }); }));
+    if(sinKm.length && confirm(`¿Calcular ahora los km de las ${sinKm.length} fila(s) importadas sin km?\nSe calcula uno por uno, puede tardar un par de minutos. Podés seguir usando la planilla mientras tanto.`)){
+      for(const p of PERSONAS){
+        const lista = sinKm.filter(x=>x.p===p).map(x=>x.f);
+        if(!lista.length) continue;
+        await recalcularKmFilas(lista, { persona: p, progreso: (i,n)=> mostrarImportMsg(`Calculando km de ${PERSONA_NOMBRE[p]}… ${i} de ${n}`) });
+      }
+      renderTabla();
+      mostrarImportMsg(`Se importaron ${total} fila(s) (${detalle}) y se calcularon los km. Revisá las filas con ⚠ o ≈ (dirección no encontrada o km estimado) con el pin o el botón de rutas.`, "var(--ok-text)");
+    }
   }catch(err){
     console.error(err);
     mostrarImportMsg("No se pudo leer el archivo: " + (err && err.message ? err.message : err), "var(--err-text)");
@@ -2354,7 +2595,7 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
 const GOOGLE_CLIENT_ID = "951183674911-s3vqfcsi8ggj6n65usisebiujfquqfbe.apps.googleusercontent.com";
 const GOOGLE_SPREADSHEET_ID = "1-V6PSVVO2BkVz98gj3U2QeglN3aTrCFAtmOovZ6kO5g";
 const GOOGLE_SHEET_PREFIX = "Migracion";
-const MIGRACION_HEADER = ["Chofer","Día","Hora Inicio","Hora Fin","Punto de Partida","Dirección Punto de Partida","Punto de Llegada","Dirección Punto de Llegada","Km","Gasto Extra","Monto Gasto Extra","Observaciones"];
+const MIGRACION_HEADER = ["Chofer","Día","Hora","Lugar","Dirección","Localidad","Km","Gasto Extra","Monto Gasto Extra","Observaciones"];
 function nombreHojaGoogle(persona){ return `${GOOGLE_SHEET_PREFIX}_${PERSONA_NOMBRE[persona]}`; }
 function formatDiaExcel(fecha){ return formatDiaLargo(fecha); }
 
@@ -2362,12 +2603,11 @@ function formatDiaExcel(fecha){ return formatDiaLargo(fecha); }
    número para que se puedan sumar en la planilla. */
 function construirFilasDia(dia, filas, personaLabel){
   const diaTxt = formatDiaExcel(dia.fecha);
-  ordenarPorHoraInicio(dia.movimientos).forEach(f=>{
+  dia.movimientos.forEach(f=>{ // ya vienen en el orden del recorrido
     const km = f.km !== "" && f.km != null && !isNaN(Number(f.km)) ? Number(f.km) : "";
     const monto = Number(f.gastoMonto) ? Number(f.gastoMonto) : "";
     filas.push([
-      personaLabel, diaTxt, f.horaIni||"", f.horaFin||"",
-      f.partida||"", f.partidaDir||"", f.llegada||"", f.llegadaDir||"",
+      personaLabel, diaTxt, f.hora||"", f.lugar||"", f.direccion||"", f.localidad||"",
       km, textoGasto(f), monto, f.obs||""
     ]);
   });
@@ -2565,7 +2805,7 @@ document.getElementById("btnGenerarMigracion").addEventListener("click", ()=>{
       dias.forEach(dia=> construirFilasDia(dia, filas, personaLabel));
       totalFilas += filas.length - 1;
       const ws = XLSX.utils.aoa_to_sheet(filas);
-      ws["!cols"] = [{wch:10},{wch:32},{wch:10},{wch:10},{wch:22},{wch:34},{wch:22},{wch:34},{wch:8},{wch:22},{wch:14},{wch:30}];
+      ws["!cols"] = [{wch:10},{wch:32},{wch:8},{wch:26},{wch:30},{wch:18},{wch:8},{wch:22},{wch:14},{wch:30}];
       XLSX.utils.book_append_sheet(wb, ws, personaLabel); // hoja "Leo" y/o hoja "Tito"
     });
     const nombreArchivo = `Migracion_${desdeStr.replace(/\//g,"-")}_a_${hastaStr.replace(/\//g,"-")}.xlsx`;
