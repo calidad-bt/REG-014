@@ -2436,7 +2436,10 @@ function importarNumero(v){
   if(typeof v === "number") return v;
   const t = String(v).replace(/[$\s]/g,"");
   if(!t) return "";
-  const n = t.includes(",") ? parseFloat(t.replace(/\./g,"").replace(",", ".")) : parseFloat(t);
+  let n;
+  if(t.includes(",")) n = parseFloat(t.replace(/\./g,"").replace(",", "."));   // 1.500,50
+  else if(/^-?\d{1,3}(\.\d{3})+$/.test(t)) n = parseFloat(t.replace(/\./g,"")); // 1.200 = mil doscientos
+  else n = parseFloat(t);
   return isNaN(n) ? "" : n;
 }
 function importarGasto(v){
@@ -2519,7 +2522,19 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
   try{
     mostrarImportMsg("Leyendo archivo…");
     const buf = await archivo.arrayBuffer();
-    const wb = XLSX.read(buf, { type:"array" });
+    let wb;
+    if(/\.(csv|txt)$/i.test(archivo.name)){
+      /* CSV: se decodifica a mano (UTF-8, o Windows-1252 que es como lo guarda
+         Excel en castellano) y se lee todo como texto, para que "10/08/2026" no
+         se interprete como fecha en formato yanqui (mes/día). */
+      let texto;
+      try{ texto = new TextDecoder("utf-8", { fatal:true }).decode(buf); }
+      catch(e){ texto = new TextDecoder("windows-1252").decode(buf); }
+      texto = texto.replace(/^\uFEFF/, "");
+      wb = XLSX.read(texto, { type:"string", raw:true });
+    } else {
+      wb = XLSX.read(buf, { type:"array" });
+    }
     const { salida, sinFecha, hojasLeidas } = leerFilasDeLibro(wb);
     if(hojasLeidas === 0){
       mostrarImportMsg(`No se encontró ninguna hoja con encabezados reconocibles. La fila de títulos tiene que tener al menos "Fecha" (o "Día") y "Lugar" (o "Dirección").`, "var(--err-text)");
@@ -2573,7 +2588,8 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
     mostrarImportMsg(`Se importaron ${total} fila(s) (${detalle}).${repetidas?` Se omitieron ${repetidas} repetidas.`:""}${avisoFecha}`, "var(--ok-text)");
 
     const sinKm = [];
-    PERSONAS.forEach(p=> nuevas[p].forEach(f=>{ if(f.km === "" && f.fecha) sinKm.push({ p, f }); }));
+    // Sin km y que no sean el primer lugar del día (ese no suma km)
+    PERSONAS.forEach(p=> nuevas[p].forEach(f=>{ if(f.km === "" && f.fecha && filaAnterior(f, p)) sinKm.push({ p, f }); }));
     if(sinKm.length && confirm(`¿Calcular ahora los km de las ${sinKm.length} fila(s) importadas sin km?\nSe calcula uno por uno, puede tardar un par de minutos. Podés seguir usando la planilla mientras tanto.`)){
       for(const p of PERSONAS){
         const lista = sinKm.filter(x=>x.p===p).map(x=>x.f);
