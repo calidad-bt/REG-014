@@ -551,6 +551,7 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
           <button class="btn-add-row" id="btnNuevaFila">+ Agregar fila</button>
           <button class="btn btn-light" id="btnImportar" title="Excel (.xlsx, .xls, .csv) o PDF generado desde Excel">Importar Excel / PDF</button>
           <input type="file" id="importarArchivo" accept=".xlsx,.xls,.csv,.pdf" style="display:none;">
+          <button class="btn btn-light" id="btnTraerReg014" style="display:none;" title="Copia los días cargados en la app REG-014 original a esta planilla (no modifica REG-014)">Traer datos de REG-014</button>
           <button class="btn btn-light" id="btnMigrar">Migrar a Excel</button>
           <span id="migrarLockMsg" style="display:none; font-size:11px; color:var(--text-3);">Migrar requiere permiso de Pagos</span>
         </div>
@@ -2537,6 +2538,29 @@ function leerFilasDeLibro(wb){
   return { salida, sinFecha, hojasLeidas };
 }
 
+/* Separa, de las filas leídas, las que ya están cargadas. Se compara contra la
+   fila tal como vino en el origen (_importClave) y contra cómo quedó cargada,
+   así reimportar lo mismo no duplica filas aunque después se les haya
+   completado la dirección. */
+function filtrarNuevasImport(salida){
+  const existentes = {};
+  PERSONAS.forEach(p=>{
+    existentes[p] = new Set();
+    DATA.movs[p].filas.forEach(f=>{ existentes[p].add(claveFilaImport(f)); if(f._importClave) existentes[p].add(f._importClave); });
+  });
+  const nuevas = { leo: [], tito: [] };
+  let repetidas = 0, sinPermiso = 0;
+  salida.forEach(({persona, fila})=>{
+    if(!persona){ sinPermiso++; return; }
+    const k = claveFilaImport(fila);
+    if(existentes[persona].has(k)){ repetidas++; return; }
+    existentes[persona].add(k);
+    fila._importClave = k;
+    nuevas[persona].push(fila);
+  });
+  return { nuevas, repetidas, sinPermiso };
+}
+
 function mostrarImportMsg(texto, color){
   const el = document.getElementById("importarMsg");
   el.style.display = texto ? "block" : "none";
@@ -2692,24 +2716,7 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
       mostrarImportMsg(`No se encontraron encabezados reconocibles. La fila de títulos tiene que tener al menos "Fecha" (o "Día") y "Lugar" (o "Dirección").`, "var(--err-text)");
       return;
     }
-    const existentes = {};
-    /* Se compara contra la fila tal como vino en el archivo (_importClave) y contra
-       cómo quedó cargada, así reimportar el mismo archivo no duplica filas aunque
-       después se les haya completado la dirección. */
-    PERSONAS.forEach(p=>{
-      existentes[p] = new Set();
-      DATA.movs[p].filas.forEach(f=>{ existentes[p].add(claveFilaImport(f)); if(f._importClave) existentes[p].add(f._importClave); });
-    });
-    const nuevas = { leo: [], tito: [] };
-    let repetidas = 0, sinPermiso = 0;
-    salida.forEach(({persona, fila})=>{
-      if(!persona){ sinPermiso++; return; }
-      const k = claveFilaImport(fila);
-      if(existentes[persona].has(k)){ repetidas++; return; }
-      existentes[persona].add(k);
-      fila._importClave = k;
-      nuevas[persona].push(fila);
-    });
+    const { nuevas, repetidas, sinPermiso } = filtrarNuevasImport(salida);
     const total = nuevas.leo.length + nuevas.tito.length;
     if(total === 0){
       mostrarImportMsg(`No hay filas nuevas para importar${repetidas?` (${repetidas} ya estaban cargadas)`:""}${sinPermiso?` · ${sinPermiso} de un chofer que tu usuario no puede ver`:""}.`, "var(--warn-text)");
@@ -2723,7 +2730,7 @@ document.getElementById("importarArchivo").addEventListener("change", async e=>{
   }
 });
 
-async function confirmarImportacion({ nuevas, repetidas, sinFecha }){
+async function confirmarImportacion({ nuevas, repetidas, sinFecha, origen, geo, pagos }){
   const total = nuevas.leo.length + nuevas.tito.length;
   const detalle = PERSONAS.filter(p=> nuevas[p].length).map(p=> `${PERSONA_NOMBRE[p]}: ${nuevas[p].length}`).join(" · ");
   PERSONAS.forEach(p=>{
@@ -2732,10 +2739,22 @@ async function confirmarImportacion({ nuevas, repetidas, sinFecha }){
     nuevas[p].forEach(f=>{
       if(proximo[f.fecha] == null) proximo[f.fecha] = siguienteOrden(p, f.fecha);
       f.orden = proximo[f.fecha]++;
-      marcarCarga(f);
+      if(!f._cargadoPor) marcarCarga(f); // las filas traídas de REG-014 conservan quién las cargó
     });
     DATA.movs[p].filas = DATA.movs[p].filas.concat(nuevas[p]);
   });
+  /* Ubicaciones y configuración de Pagos traídas de REG-014: solo se agregan las
+     que todavía no existen acá, nunca se pisa lo que ya está cargado en esta app. */
+  let geoNuevas = 0, pagosNuevos = 0;
+  if(geo) Object.entries(geo).forEach(([k,v])=>{ if(!DATA.geo[k]){ DATA.geo[k] = v; geoNuevas++; } });
+  if(pagos) PERSONAS.forEach(p=>{
+    ["dias","semanas"].forEach(tipo=>{
+      Object.entries((pagos[p]||{})[tipo]||{}).forEach(([k,v])=>{
+        if(!DATA.pagos[p][tipo][k]){ DATA.pagos[p][tipo][k] = v; pagosNuevos++; }
+      });
+    });
+  });
+
   // Lugares sin dirección/localidad: se completan con lo último usado para ese lugar
   PERSONAS.forEach(p=> nuevas[p].forEach(f=> autocompletarLugar(f)));
   filtros = {};
@@ -2743,6 +2762,11 @@ async function confirmarImportacion({ nuevas, repetidas, sinFecha }){
   persistir();
   const avisoFecha = sinFecha ? ` ${sinFecha} fila(s) sin fecha válida (quedaron sin día, podés completarlo a mano).` : "";
   mostrarImportMsg(`Se importaron ${total} fila(s) (${detalle}).${repetidas?` Se omitieron ${repetidas} repetidas.`:""}${avisoFecha}`, "var(--ok-text)");
+  if(origen === "reg014"){
+    // Los km vienen de REG-014 tal como estaban: no se recalculan
+    mostrarImportMsg(`Se trajeron ${total} fila(s) de REG-014 (${detalle}).${repetidas?` Se omitieron ${repetidas} que ya estaban.`:""}${avisoFecha} Ubicaciones copiadas: ${geoNuevas} · Datos de Pagos copiados: ${pagosNuevos}.`, "var(--ok-text)");
+    return;
+  }
 
   const sinKm = [];
   // Sin km y que no sean el primer lugar del día (ese no suma km)
@@ -2759,39 +2783,266 @@ async function confirmarImportacion({ nuevas, repetidas, sinFecha }){
 }
 
 /* ============================================================
+   TRAER DATOS DESDE REG-014 (app original, proyecto Firebase SGC-A)
+   Lee UNA sola vez el nodo /reg014 (once, sin listener ni polling), lo
+   convierte al formato de esta planilla y lo muestra en la vista previa de
+   importación. No modifica nada en REG-014.
+   Conversión de cada día: los movimientos se ordenan por hora de inicio y se
+   arma el recorrido lugar por lugar. El primer lugar es la partida del primer
+   movimiento; cada llegada es una fila nueva con el km y los gastos de ese
+   movimiento. Si la partida de un movimiento no coincide con la llegada
+   anterior, se agrega esa partida como lugar con 0 km (en REG-014 ese tramo
+   no estaba registrado), así los totales de km quedan iguales.
+============================================================ */
+const REG014_ORIGEN_CONFIG = {
+  apiKey: "AIzaSyAjcppsJZvGXfNiMJ_5u9T52C-r-HOk9wY",
+  authDomain: "sgc-a-848bc.firebaseapp.com",
+  databaseURL: "https://sgc-a-848bc-default-rtdb.firebaseio.com",
+  projectId: "sgc-a-848bc",
+  storageBucket: "sgc-a-848bc.firebasestorage.app",
+  messagingSenderId: "488017079925",
+  appId: "1:488017079925:web:b389c35d91d0a0b1c7123c"
+};
+const REG014_ORIGEN_PATH = "/reg014";
+const REG014_BIOTROM_ID = "__biotrom__";
+
+async function leerReg014Original(){
+  let app = firebase.apps.find(a=> a.name === "reg014origen");
+  if(!app) app = firebase.initializeApp(REG014_ORIGEN_CONFIG, "reg014origen");
+  try{
+    await app.auth().signInAnonymously();
+    const snap = await app.database().ref(REG014_ORIGEN_PATH).once("value");
+    const v = snap.val();
+    return v && v.data ? v.data : null;
+  } finally {
+    try{ await app.delete(); }catch(e){} // corta la conexión con SGC-A
+  }
+}
+
+/* "Calle 123, Localidad, Buenos Aires" -> { direccion:"Calle 123", localidad:"Localidad" } */
+const PROVINCIAS_UBIC = ["buenos aires","provincia de buenos aires","capital federal","santa fe","cordoba"];
+function partirUbicacion(ubic){
+  const partes = String(ubic||"").split(",").map(x=>x.trim()).filter(Boolean);
+  if(partes.length > 1 && PROVINCIAS_UBIC.includes(normGeo(partes[partes.length-1]))) partes.pop();
+  if(partes.length <= 1) return { direccion: partes[0]||"", localidad: "" };
+  const localidad = partes.pop();
+  return { direccion: partes.join(", "), localidad };
+}
+function buscarMaestroReg014(datos, id){
+  const m = datos.maestros || {};
+  for(const cat of ["salud","encomiendas","esterilizadoras","proveedores","puntosFijos","otros"]){
+    const x = comoArray(m[cat]).find(e=> e && e.id === id);
+    if(x) return x;
+  }
+  return null;
+}
+/* Lugar de partida o llegada de un movimiento de REG-014 */
+function puntoReg014(datos, mv, cual){
+  const id = mv[cual+"Id"];
+  if(id){
+    if(id === REG014_BIOTROM_ID){
+      const b = datos.biotrom || {};
+      return { lugar:"BT", direccion:"General Urquiza 428", localidad:"CABA", lat:b._lat, lng:b._lng, manual:!!b._geoManual, clave:"id:"+id };
+    }
+    const m = buscarMaestroReg014(datos, id);
+    if(!m) return { lugar:"(lugar borrado del maestro)", direccion:"", localidad:"", clave:"id:"+id, huerfano:true };
+    return { lugar:(m.nombre||"").trim(), ...partirUbicacion(m.ubicacion), lat:m._lat, lng:m._lng, manual:!!m._geoManual, clave:"id:"+id };
+  }
+  const libre = (mv[cual+"Libre"]||"").trim();
+  if(!libre) return null;
+  const g = mv["_geo_"+cual] || {};
+  return { lugar:libre, direccion:"", localidad:"", lat:g.lat, lng:g.lng, manual:!!g.geoManual, clave:"txt:"+normalizarTexto(libre) };
+}
+function montoReg014(v){
+  if(typeof v === "number") return v;
+  return parseMonto(v);
+}
+function kmReg014(v){
+  const n = parseFloat(String(v==null?"":v).replace(",", "."));
+  return isNaN(n) ? "" : (Math.round(n*10)/10).toFixed(1);
+}
+function ordenarMovsReg014(movs){
+  return [...movs].sort((a,b)=>{
+    const ta = timeToMin(a.horaIni||""), tb = timeToMin(b.horaIni||"");
+    if(ta === null && tb === null) return 0;
+    if(ta === null) return -1;
+    if(tb === null) return 1;
+    return ta - tb;
+  });
+}
+
+function convertirReg014(datos){
+  const salida = [];  // { persona, fila }
+  const geo = {};
+  const pagos = { leo:{ dias:{}, semanas:{} }, tito:{ dias:{}, semanas:{} } };
+  const st = { dias:0, gastosCombinados:0, fotos:0, horasManual:0, huecos:0, huerfanos:0 };
+  const permitidas = personasPermitidasActuales();
+
+  PERSONAS.forEach(p=>{
+    const dias = comoArray(datos.movs && datos.movs[p] && datos.movs[p].dias).filter(d=> d && typeof d === "object");
+    const pagosOrig = (datos.pagos && datos.pagos[p]) || {};
+
+    // Días con la misma fecha se unen en uno solo (acá un día = una fecha)
+    const grupos = {}, ordenGrupos = [];
+    dias.forEach(d=>{
+      const fecha = parseDiaKey(d.fecha) ? d.fecha : "";
+      const k = fecha || ("__sinfecha_" + (d.id||uid()));
+      if(!grupos[k]){ grupos[k] = { fecha, dias: [] }; ordenGrupos.push(k); }
+      grupos[k].dias.push(d);
+      if(d.usarManual) st.horasManual++;
+      const cfg = pagosOrig.dias && pagosOrig.dias[d.id];
+      if(fecha && cfg && typeof cfg === "object" && !pagos[p].dias["d"+parseDiaKey(fecha)]) pagos[p].dias["d"+parseDiaKey(fecha)] = { ...cfg };
+    });
+    Object.entries(pagosOrig.semanas || {}).forEach(([wk, s])=>{
+      if(!s || typeof s !== "object") return;
+      const c = { ...s };
+      if(c.pagoKm == null && c.pago != null) c.pagoKm = Number(c.pago)||0;
+      delete c.pago;
+      pagos[p].semanas[wk] = c;
+    });
+
+    ordenGrupos.forEach(k=>{
+      const { fecha, dias: ds } = grupos[k];
+      const movs = ordenarMovsReg014(ds.flatMap(d=> comoArray(d.movimientos).filter(Boolean).map(mv=> ({ ...mv, _dia:d }))));
+      const obsDia = ds.map(d=> (d.obs||"").trim()).filter(Boolean).join(" / ");
+      if(!movs.length && !obsDia) return;
+      st.dias++;
+      const filas = [];
+      const nueva = (hora, pt, d)=> {
+        if(pt && pt.huerfano) st.huerfanos++;
+        const f = {
+          id: uid(), fecha, hora: normalizarHora(hora||""),
+          lugar: pt ? pt.lugar : "", direccion: pt ? pt.direccion : "", localidad: pt ? pt.localidad : "",
+          km:"", gastoTipo:"", gastoDetalle:"", gastoMonto:"", obs:"", creadoTs: Date.now()
+        };
+        if(d && d._cargadoPor){ f._cargadoPor = d._cargadoPor; f._cargadoTs = d._cargadoTs || Date.now(); }
+        if(pt && pt.lat != null && pt.lng != null){
+          const q = textoConsulta(f);
+          if(q) geo[geoKey(q)] = { dir:q.trim(), lat:pt.lat, lng:pt.lng, manual:pt.manual, resuelto:"" };
+        }
+        filas.push(f);
+        return f;
+      };
+      let ultimo = null;
+      movs.forEach(mv=>{
+        const pp = puntoReg014(datos, mv, "partida"), pl = puntoReg014(datos, mv, "llegada");
+        let filaMov = null;
+        if(pp && (!ultimo || ultimo.clave !== pp.clave)){
+          filaMov = nueva(mv.horaIni, pp, mv._dia);
+          if(ultimo){ filaMov.km = "0.0"; filaMov.obs = "Tramo desde el lugar anterior no registrado en REG-014"; st.huecos++; }
+          ultimo = pp;
+        }
+        if(pl){
+          filaMov = nueva(mv.horaFin || "", pl, mv._dia);
+          filaMov.km = kmReg014(mv.km);
+          ultimo = pl;
+        }
+        const gastos = comoArray(mv.gastos).filter(g=> g && (g.tipo || g.monto));
+        gastos.forEach(g=>{ if(g.foto) st.fotos++; });
+        if(filaMov && gastos.length){
+          const tipoDe = g=> g.tipo === "Otro" ? `Otro${g.detalle?` (${g.detalle})`:""}` : (g.tipo||"Otro");
+          if(gastos.length === 1){
+            const g = gastos[0];
+            if(GASTO_TIPOS.includes(g.tipo)){ filaMov.gastoTipo = g.tipo; filaMov.gastoDetalle = g.tipo === "Otro" ? (g.detalle||"") : ""; }
+            else { filaMov.gastoTipo = "Otro"; filaMov.gastoDetalle = g.tipo || ""; }
+            filaMov.gastoMonto = montoReg014(g.monto) || "";
+          } else {
+            st.gastosCombinados++;
+            filaMov.gastoTipo = "Otro";
+            filaMov.gastoDetalle = gastos.map(g=> `${tipoDe(g)} $${formatMonto(montoReg014(g.monto))}`).join(" + ");
+            filaMov.gastoMonto = gastos.reduce((a,g)=> a + (montoReg014(g.monto)||0), 0) || "";
+          }
+        }
+      });
+      if(obsDia){
+        if(!filas.length) nueva("", null, ds[0]);
+        filas[0].obs = filas[0].obs ? `${obsDia} / ${filas[0].obs}` : obsDia;
+      }
+      filas.forEach(f=> salida.push({ persona: permitidas.includes(p) ? p : null, fila: f }));
+    });
+  });
+  return { salida, geo, pagos, st };
+}
+
+document.getElementById("btnTraerReg014").addEventListener("click", async ()=>{
+  if(!permisosActuales().administracion) return;
+  const btn = document.getElementById("btnTraerReg014");
+  btn.disabled = true;
+  try{
+    mostrarImportMsg("Leyendo los datos de REG-014…");
+    const datos = await leerReg014Original();
+    if(!datos){ mostrarImportMsg("No se encontraron datos en REG-014.", "var(--warn-text)"); return; }
+    const conv = convertirReg014(datos);
+    const { nuevas, repetidas, sinPermiso } = filtrarNuevasImport(conv.salida);
+    const total = nuevas.leo.length + nuevas.tito.length;
+    if(total === 0){
+      mostrarImportMsg(`No hay filas nuevas para traer${repetidas?` (${repetidas} ya estaban cargadas)`:""}.`, "var(--warn-text)");
+      return;
+    }
+    const sinFecha = PERSONAS.reduce((a,p)=> a + nuevas[p].filter(f=> !f.fecha).length, 0);
+    const st = conv.st, notas = [];
+    if(st.huecos) notas.push(`${st.huecos} lugar(es) agregados con 0 km porque el tramo no estaba registrado`);
+    if(st.gastosCombinados) notas.push(`${st.gastosCombinados} movimiento(s) con varios gastos quedaron en una sola fila como "Otro" con el detalle y el monto sumado`);
+    if(st.fotos) notas.push(`${st.fotos} foto(s) de comprobantes no se pasan (esta planilla no guarda fotos; siguen en REG-014)`);
+    if(st.horasManual) notas.push(`${st.horasManual} día(s) tenían horas extra cargadas a mano; acá se calculan solas por la hora`);
+    if(st.huerfanos) notas.push(`${st.huerfanos} lugar(es) apuntaban a un registro borrado del maestro`);
+    mostrarImportMsg("Revisá la vista previa antes de traer los datos." + (notas.length ? " Tené en cuenta: " + notas.join(" · ") + "." : ""), notas.length ? "var(--warn-text)" : "");
+    abrirVistaPreviaImport({ nuevas, repetidas, sinPermiso, sinFecha, origen:"reg014", geo: conv.geo, pagos: conv.pagos }, "REG-014 (app original)");
+  }catch(err){
+    console.error(err);
+    mostrarImportMsg("No se pudo leer REG-014: " + (err && err.message ? err.message : err), "var(--err-text)");
+  }finally{
+    btn.disabled = false;
+  }
+});
+
+/* ============================================================
    MIGRAR A EXCEL + GOOGLE SHEETS (Drive)
-   Sube a la planilla de Google una hoja por chofer ("Migracion_Leo" /
-   "Migracion_Tito"), con las mismas columnas de la planilla de la app.
+   Sube a la planilla de Google una hoja por chofer ("Leo" / "Tito"), con las
+   columnas Día · Hora · Lugar · Dirección · Localidad · Km · Gasto Extra ·
+   Monto Gasto Extra · Observaciones. Día va como fecha real (d/M/yyyy) y Hora
+   como hora real (h:mm), así se pueden filtrar y ordenar en la planilla.
    Si la subida a Drive no está disponible, descarga un .xlsx equivalente.
 ============================================================ */
 const GOOGLE_CLIENT_ID = "951183674911-s3vqfcsi8ggj6n65usisebiujfquqfbe.apps.googleusercontent.com";
 const GOOGLE_SPREADSHEET_ID = "1-V6PSVVO2BkVz98gj3U2QeglN3aTrCFAtmOovZ6kO5g";
-const GOOGLE_SHEET_PREFIX = "Migracion";
-const MIGRACION_HEADER = ["Chofer","Día","Hora","Lugar","Dirección","Localidad","Km","Gasto Extra","Monto Gasto Extra","Observaciones"];
-function nombreHojaGoogle(persona){ return `${GOOGLE_SHEET_PREFIX}_${PERSONA_NOMBRE[persona]}`; }
-function formatDiaExcel(fecha){ return formatDiaLargo(fecha); }
+const MIGRACION_HEADER = ["Día","Hora","Lugar","Dirección","Localidad","Km","Gasto Extra","Monto Gasto Extra","Observaciones"];
+const MIGRACION_ANCHOS = [10.88,14.75,19.5,24.5,17.38,10.38,17.5,22.38,21.75];
+function nombreHojaGoogle(persona){ return PERSONA_NOMBRE[persona]; }
 
-/* Filas (array de arrays) de un día para Excel/Sheets. Km y Monto van como
-   número para que se puedan sumar en la planilla. */
-function construirFilasDia(dia, filas, personaLabel){
-  const diaTxt = formatDiaExcel(dia.fecha);
+/* Fecha "dd/mm/aa" -> número de serie de planilla (días desde 30/12/1899) */
+function fechaASerial(fecha){
+  const dt = fechaADate(fecha);
+  if(!dt) return "";
+  return Math.round((Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate()) - Date.UTC(1899,11,30)) / 86400000);
+}
+/* Hora "h:mm" -> fracción de día (si no tiene forma de hora, va como texto) */
+function horaASerial(hora){
+  const t = timeToMin(hora);
+  return t === null ? (hora||"") : t / 1440;
+}
+
+/* Filas (array de arrays) de un día para Excel/Sheets. Día y Hora van como
+   fecha/hora reales; Km y Monto como número para que se puedan sumar. */
+function construirFilasDia(dia, filas){
+  const serial = fechaASerial(dia.fecha);
   dia.movimientos.forEach(f=>{ // ya vienen en el orden del recorrido
     const km = f.km !== "" && f.km != null && !isNaN(Number(f.km)) ? Number(f.km) : "";
     const monto = Number(f.gastoMonto) ? Number(f.gastoMonto) : "";
     filas.push([
-      personaLabel, diaTxt, f.hora||"", f.lugar||"", f.direccion||"", f.localidad||"",
+      serial === "" ? (dia.fecha||"") : serial, horaASerial(f.hora), f.lugar||"", f.direccion||"", f.localidad||"",
       km, textoGasto(f), monto, f.obs||""
     ]);
   });
 }
 
 async function asegurarHojaGoogle(token, nombreHoja){
-  const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SPREADSHEET_ID}?fields=sheets.properties.title`;
+  const metaUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SPREADSHEET_ID}?fields=sheets.properties(title,sheetId)`;
   const rMeta = await fetch(metaUrl, { headers: { "Authorization": "Bearer " + token } });
   if(!rMeta.ok) throw new Error("No se pudo leer la lista de hojas (HTTP " + rMeta.status + ")");
   const meta = await rMeta.json();
-  const existe = (meta.sheets||[]).some(s => s.properties && s.properties.title === nombreHoja);
-  if(existe) return;
+  const existe = (meta.sheets||[]).find(s => s.properties && s.properties.title === nombreHoja);
+  if(existe) return existe.properties.sheetId;
   const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SPREADSHEET_ID}:batchUpdate`;
   const rBatch = await fetch(batchUrl, {
     method: "POST",
@@ -2799,11 +3050,41 @@ async function asegurarHojaGoogle(token, nombreHoja){
     body: JSON.stringify({ requests: [{ addSheet: { properties: { title: nombreHoja } } }] })
   });
   if(!rBatch.ok) throw new Error("No se pudo crear la hoja \"" + nombreHoja + "\" (HTTP " + rBatch.status + ")");
+  const res = await rBatch.json();
+  return res.replies[0].addSheet.properties.sheetId;
 }
 
-/* Sube a Google Sheets una hoja por persona ("Migracion_Leo", "Migracion_Tito"),
-   creándola si no existe. Agrega el encabezado solo si la hoja está vacía, y omite
-   (sin sobreescribir) los días cuya fecha ya figura en la columna A+B de esa hoja. */
+/* Formato de la hoja: Día como fecha y Hora como hora en toda la columna; si
+   la hoja se acaba de crear, también el encabezado (negrita, fondo teal). */
+async function formatearHojaGoogle(token, sheetId, conEncabezado){
+  const col = (i, tipo, patron)=> ({ repeatCell: {
+    range: { sheetId, startRowIndex: 1, startColumnIndex: i, endColumnIndex: i+1 },
+    cell: { userEnteredFormat: { numberFormat: { type: tipo, pattern: patron } } },
+    fields: "userEnteredFormat.numberFormat"
+  }});
+  const requests = [col(0, "DATE", "d/M/yyyy"), col(1, "TIME", "h:mm")];
+  if(conEncabezado){
+    requests.push({ repeatCell: {
+      range: { sheetId, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: MIGRACION_HEADER.length },
+      cell: { userEnteredFormat: {
+        backgroundColor: { red: 14/255, green: 107/255, blue: 138/255 },
+        horizontalAlignment: "CENTER",
+        textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } }
+      }},
+      fields: "userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)"
+    }});
+  }
+  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SPREADSHEET_ID}:batchUpdate`, {
+    method: "POST",
+    headers: { "Authorization": "Bearer " + token, "Content-Type": "application/json" },
+    body: JSON.stringify({ requests })
+  });
+  if(!r.ok) throw new Error("No se pudo dar formato a la hoja (HTTP " + r.status + ")");
+}
+
+/* Sube a Google Sheets una hoja por persona ("Leo", "Tito"), creándola si no
+   existe. Agrega el encabezado solo si la hoja está vacía, y omite (sin
+   sobreescribir) los días cuya fecha ya figura en la columna Día de esa hoja. */
 function subirAGoogleSheets(diasPorPersona){
   return new Promise((resolve, reject)=>{
     if(!GOOGLE_CLIENT_ID || !GOOGLE_SPREADSHEET_ID){
@@ -2825,28 +3106,27 @@ function subirAGoogleSheets(diasPorPersona){
           for(const persona of PERSONAS){
             const diasFiltrados = diasPorPersona[persona] || [];
             if(diasFiltrados.length === 0) continue;
-            const personaLabel = PERSONA_NOMBRE[persona];
             const nombreHoja = nombreHojaGoogle(persona);
 
-            await asegurarHojaGoogle(token, nombreHoja);
+            const sheetId = await asegurarHojaGoogle(token, nombreHoja);
 
-            const colRange = encodeURIComponent(`${nombreHoja}!A:B`);
-            const getUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SPREADSHEET_ID}/values/${colRange}`;
+            const colRange = encodeURIComponent(`${nombreHoja}!A:A`);
+            const getUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SPREADSHEET_ID}/values/${colRange}?valueRenderOption=UNFORMATTED_VALUE&dateTimeRenderOption=SERIAL_NUMBER`;
             const rGet = await fetch(getUrl, { headers: { "Authorization": "Bearer " + token } });
             if(!rGet.ok) throw new Error("No se pudo leer la hoja \"" + nombreHoja + "\" (HTTP " + rGet.status + ")");
             const dataGet = await rGet.json();
             const filasExistentes = dataGet.values || [];
             const hayHeader = filasExistentes.length > 0;
+            // Fechas ya cargadas (vengan como fecha real o como texto)
             const diasYaCargados = new Set(
               filasExistentes.slice(hayHeader ? 1 : 0)
-                .map(f => `${(f[0]||"").trim()}|${(f[1]||"").trim()}`)
-                .filter(k => k !== "|")
+                .map(f => importarFecha(f[0]))
+                .filter(Boolean)
             );
 
             const diasNuevos = [], diasOmitidos = [];
             diasFiltrados.forEach(dia=>{
-              const clave = `${personaLabel}|${formatDiaExcel(dia.fecha)}`;
-              if(diasYaCargados.has(clave)) diasOmitidos.push(dia.fecha);
+              if(diasYaCargados.has(dia.fecha)) diasOmitidos.push(dia.fecha);
               else diasNuevos.push(dia);
             });
 
@@ -2857,7 +3137,7 @@ function subirAGoogleSheets(diasPorPersona){
 
             const filas = [];
             if(!hayHeader) filas.push([...MIGRACION_HEADER]);
-            diasNuevos.forEach(dia=> construirFilasDia(dia, filas, personaLabel));
+            diasNuevos.forEach(dia=> construirFilasDia(dia, filas));
 
             const range = encodeURIComponent(`${nombreHoja}!A1`);
             const postUrl = `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SPREADSHEET_ID}/values/${range}:append?valueInputOption=RAW`;
@@ -2867,6 +3147,7 @@ function subirAGoogleSheets(diasPorPersona){
               body: JSON.stringify({ values: filas })
             });
             if(!rPost.ok) throw new Error("HTTP " + rPost.status);
+            await formatearHojaGoogle(token, sheetId, !hayHeader);
             resultados[persona] = { subidas: diasNuevos.length, omitidos: diasOmitidos };
           }
           resolve(resultados);
@@ -2932,7 +3213,7 @@ document.getElementById("btnGenerarMigracion").addEventListener("click", ()=>{
     diasPorPersona[p] = diasDesdeFilas(p).filter(d=>{
       const k = parseDiaKey(d.fecha);
       return k && k >= minKey && k <= maxKey;
-    }).sort((a,b)=> parseDiaKey(b.fecha) - parseDiaKey(a.fecha));
+    }).sort((a,b)=> parseDiaKey(a.fecha) - parseDiaKey(b.fecha));
   });
 
   const totalDias = PERSONAS.reduce((acc,p)=> acc + diasPorPersona[p].length, 0);
@@ -2974,10 +3255,16 @@ document.getElementById("btnGenerarMigracion").addEventListener("click", ()=>{
       if(dias.length === 0) return; // no crear una hoja vacía para quien no tiene días en el rango
       const personaLabel = PERSONA_NOMBRE[p];
       const filas = [[...MIGRACION_HEADER]];
-      dias.forEach(dia=> construirFilasDia(dia, filas, personaLabel));
+      dias.forEach(dia=> construirFilasDia(dia, filas));
       totalFilas += filas.length - 1;
       const ws = XLSX.utils.aoa_to_sheet(filas);
-      ws["!cols"] = [{wch:10},{wch:32},{wch:8},{wch:26},{wch:30},{wch:18},{wch:8},{wch:22},{wch:14},{wch:30}];
+      for(let r=1; r<filas.length; r++){
+        const a = ws[XLSX.utils.encode_cell({ r, c:0 })], b = ws[XLSX.utils.encode_cell({ r, c:1 })];
+        if(a && a.t === "n") a.z = "d/m/yyyy";
+        if(b && b.t === "n") b.z = "h:mm";
+      }
+      ws["!cols"] = MIGRACION_ANCHOS.map(w=> ({ wch: w }));
+      ws["!autofilter"] = { ref: `A1:I${filas.length}` };
       XLSX.utils.book_append_sheet(wb, ws, personaLabel); // hoja "Leo" y/o hoja "Tito"
     });
     const nombreArchivo = `Migracion_${desdeStr.replace(/\//g,"-")}_a_${hastaStr.replace(/\//g,"-")}.xlsx`;
@@ -3307,6 +3594,7 @@ function aplicarPermisos(){
   filtros = {};
   renderTabla();
   actualizarBotonMigrar();
+  document.getElementById("btnTraerReg014").style.display = perm.administracion ? "" : "none";
   if(perm.administracion) renderUsuarios();
 }
 
