@@ -1188,6 +1188,26 @@ function liveFormatMonto(raw){
   intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return decPart !== null ? intPart + "," + decPart : intPart;
 }
+/* Lee un monto tal como lo escribió el usuario, sin importar el teclado:
+   "1500", "1.500", "1500,50", "1.500,50" y "1500.50" (teclados de celular
+   que traen punto decimal). Con coma: la coma es decimal y los puntos son
+   de miles. Sin coma: un solo punto seguido de 1 o 2 dígitos es decimal;
+   cualquier otro punto es de miles. */
+function parseMontoFlex(str){
+  let t = String(str==null?"":str).replace(/[$\s]/g,"");
+  if(!t) return 0;
+  if(t.includes(",")) t = t.replace(/\./g,"").replace(/,/g,".").replace(/\.(?=.*\.)/g,"");
+  else if(/^\d*\.\d{1,2}$/.test(t)) { /* decimal con punto */ }
+  else t = t.replace(/\./g,"");
+  const n = parseFloat(t);
+  return isNaN(n) ? 0 : Math.round(n*100)/100;
+}
+/* Muestra el monto para editar, sin puntos de miles (así el teclado del
+   celular no se desincroniza): 1500 -> "1500", 1500.5 -> "1500,5". */
+function montoParaEditar(n){
+  n = Number(n)||0;
+  return n === 0 ? "" : String(n).replace(".", ",");
+}
 /* ============================================================
    CALCULO AUTOMATICO DE KM ENTRE UBICACIONES (por dirección)
    Usa OpenRouteService (openrouteservice.org) para geocodificar la
@@ -2258,26 +2278,13 @@ movTbody.addEventListener("drop", e=>{
   moverFila(id, dia.findIndex(x=>x.id===destinoId));
 });
 
-movTbody.addEventListener("input", e=>{
-  if(e.target.getAttribute("data-field") === "gastoMonto"){
-    /* En muchos celulares el teclado numérico trae "." como separador decimal.
-       El formateo borra los puntos (los toma como separador de miles), así que
-       "1500.50" quedaba guardado como 150.050. Si lo que se acaba de tipear es
-       un punto, se lo toma como la coma decimal. */
-    if(e.data === "." || (e.inputType === "insertText" && e.data && e.data.endsWith("."))){
-      const pos = e.target.selectionStart || e.target.value.length;
-      const v = e.target.value;
-      if(v.charAt(pos-1) === "." && !v.includes(",")) e.target.value = v.slice(0,pos-1) + "," + v.slice(pos);
-    }
-    e.target.value = liveFormatMonto(e.target.value);
-    const pos = e.target.value.length;
-    e.target.setSelectionRange(pos, pos);
-  }
-});
+/* Monto: mientras se escribe NO se reformatea (reescribir el valor a mitad de
+   la escritura desincroniza el teclado de muchos celulares y mezcla los
+   dígitos apenas aparece el punto de miles, o sea, desde 1.000). Se formatea
+   al terminar (evento change). */
 movTbody.addEventListener("focusin", e=>{
   if(e.target.getAttribute("data-field") === "gastoMonto"){
-    const n = parseMonto(e.target.value);
-    e.target.value = n === 0 ? "" : formatMonto(n).replace(/,00$/,"");
+    e.target.value = montoParaEditar(parseMontoFlex(e.target.value));
   }
 });
 
@@ -2342,7 +2349,7 @@ movTbody.addEventListener("change", e=>{
     persistir(); return;
   }
   if(field === "gastoMonto"){
-    const n = parseMonto(e.target.value);
+    const n = parseMontoFlex(e.target.value);
     f.gastoMonto = n || "";
     e.target.value = n ? formatMonto(n) : "";
     marcarCarga(f);
@@ -3425,20 +3432,10 @@ function renderPagosRecorridos(){
   }).join("");
 }
 
-document.getElementById("tbodyPagosRecorridos").addEventListener("input", e=>{
-  const field = e.target.getAttribute("data-field");
-  if(field === "costoKm" || field === "costoHsExtra" || field === "pagoKm"){
-    const formateado = liveFormatMonto(e.target.value);
-    e.target.value = formateado;
-    const pos = e.target.value.length;
-    e.target.setSelectionRange(pos, pos);
-  }
-});
 document.getElementById("tbodyPagosRecorridos").addEventListener("focusin", e=>{
   const field = e.target.getAttribute("data-field");
   if(field === "costoKm" || field === "costoHsExtra" || field === "pagoKm"){
-    const n = parseMonto(e.target.value);
-    e.target.value = n === 0 ? "" : String(n).replace(".", ",");
+    e.target.value = montoParaEditar(parseMontoFlex(e.target.value));
   }
 });
 document.getElementById("tbodyPagosRecorridos").addEventListener("focusout", e=>{
@@ -3447,14 +3444,14 @@ document.getElementById("tbodyPagosRecorridos").addEventListener("focusout", e=>
     const tr = e.target.closest("tr[data-dia-id]");
     const diaId = tr.getAttribute("data-dia-id");
     if(!DATA.pagos[pagosPersonaActual].dias[diaId]) DATA.pagos[pagosPersonaActual].dias[diaId] = {};
-    DATA.pagos[pagosPersonaActual].dias[diaId][field] = parseMonto(e.target.value);
+    DATA.pagos[pagosPersonaActual].dias[diaId][field] = parseMontoFlex(e.target.value);
     marcarCarga(DATA.pagos[pagosPersonaActual].dias[diaId]);
     renderPagosRecorridos();
     persistir();
   } else if(field === "pagoKm"){
     const wk = e.target.getAttribute("data-semana");
     if(!DATA.pagos[pagosPersonaActual].semanas[wk]) DATA.pagos[pagosPersonaActual].semanas[wk] = {};
-    DATA.pagos[pagosPersonaActual].semanas[wk].pagoKm = parseMonto(e.target.value);
+    DATA.pagos[pagosPersonaActual].semanas[wk].pagoKm = parseMontoFlex(e.target.value);
     marcarCarga(DATA.pagos[pagosPersonaActual].semanas[wk], "Km");
     renderPagosRecorridos();
     persistir();
@@ -3492,20 +3489,10 @@ function renderPagosExtras(){
   }).join("");
 }
 
-document.getElementById("tbodyPagosExtras").addEventListener("input", e=>{
-  const field = e.target.getAttribute("data-field");
-  if(field === "pagoExtra"){
-    const formateado = liveFormatMonto(e.target.value);
-    e.target.value = formateado;
-    const pos = e.target.value.length;
-    e.target.setSelectionRange(pos, pos);
-  }
-});
 document.getElementById("tbodyPagosExtras").addEventListener("focusin", e=>{
   const field = e.target.getAttribute("data-field");
   if(field === "pagoExtra"){
-    const n = parseMonto(e.target.value);
-    e.target.value = n === 0 ? "" : String(n).replace(".", ",");
+    e.target.value = montoParaEditar(parseMontoFlex(e.target.value));
   }
 });
 document.getElementById("tbodyPagosExtras").addEventListener("focusout", e=>{
@@ -3513,7 +3500,7 @@ document.getElementById("tbodyPagosExtras").addEventListener("focusout", e=>{
   if(field === "pagoExtra"){
     const wk = e.target.getAttribute("data-semana");
     if(!DATA.pagos[pagosPersonaActual].semanas[wk]) DATA.pagos[pagosPersonaActual].semanas[wk] = {};
-    DATA.pagos[pagosPersonaActual].semanas[wk].pagoExtra = parseMonto(e.target.value);
+    DATA.pagos[pagosPersonaActual].semanas[wk].pagoExtra = parseMontoFlex(e.target.value);
     marcarCarga(DATA.pagos[pagosPersonaActual].semanas[wk], "Extra");
     renderPagosExtras();
     persistir();
