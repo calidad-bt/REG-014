@@ -333,7 +333,7 @@ tr.drag-over td{background:var(--accent-l); border-top:2px solid var(--accent);}
 .mov-info{font-family:var(--mono); font-size:11px; color:var(--text-2); display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
 .mov-info .btn{height:24px; font-size:11px; padding:0 8px;}
 .mov-table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:var(--radius);}
-table.mov-table{table-layout:fixed; min-width:1330px;}
+table.mov-table{table-layout:fixed; min-width:1320px;}
 table.mov-table th{border-top:none; vertical-align:middle; white-space:normal; line-height:1.3;}
 table.mov-table td{padding:5px 6px; vertical-align:middle;}
 .th-inner{display:flex; align-items:center; justify-content:space-between; gap:4px;}
@@ -586,9 +586,9 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
             <colgroup>
               <col class="no-print" style="width:54px;">
               <col style="width:96px;"><col style="width:64px;">
-              <col style="width:165px;"><col style="width:210px;"><col style="width:120px;">
+              <col style="width:165px;"><col><col style="width:120px;">
               <col style="width:130px;"><col style="width:150px;"><col style="width:110px;">
-              <col><col class="no-print" style="width:40px;">
+              <col style="width:170px;"><col class="no-print" style="width:40px;">
             </colgroup>
             <thead id="movThead"></thead>
             <tbody id="movTbody"></tbody>
@@ -2260,6 +2260,15 @@ movTbody.addEventListener("drop", e=>{
 
 movTbody.addEventListener("input", e=>{
   if(e.target.getAttribute("data-field") === "gastoMonto"){
+    /* En muchos celulares el teclado numérico trae "." como separador decimal.
+       El formateo borra los puntos (los toma como separador de miles), así que
+       "1500.50" quedaba guardado como 150.050. Si lo que se acaba de tipear es
+       un punto, se lo toma como la coma decimal. */
+    if(e.data === "." || (e.inputType === "insertText" && e.data && e.data.endsWith("."))){
+      const pos = e.target.selectionStart || e.target.value.length;
+      const v = e.target.value;
+      if(v.charAt(pos-1) === "." && !v.includes(",")) e.target.value = v.slice(0,pos-1) + "," + v.slice(pos);
+    }
     e.target.value = liveFormatMonto(e.target.value);
     const pos = e.target.value.length;
     e.target.setSelectionRange(pos, pos);
