@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>REG-014 · Registro de Movimientos de Transporte</title>
+<title>REG-014 · Prueba Logística</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -333,7 +333,7 @@ tr.drag-over td{background:var(--accent-l); border-top:2px solid var(--accent);}
 .mov-info{font-family:var(--mono); font-size:11px; color:var(--text-2); display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px;}
 .mov-info .btn{height:24px; font-size:11px; padding:0 8px;}
 .mov-table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:var(--radius);}
-table.mov-table{table-layout:fixed; min-width:1320px;}
+table.mov-table{table-layout:fixed; min-width:1336px;}
 table.mov-table th{border-top:none; vertical-align:middle; white-space:normal; line-height:1.3;}
 table.mov-table td{padding:5px 6px; vertical-align:middle;}
 .th-inner{display:flex; align-items:center; justify-content:space-between; gap:4px;}
@@ -402,6 +402,33 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
 
 
 /* ---------- RESPONSIVE / MOBILE ---------- */
+/* ---------- MAESTROS (copia del maestro de REG-014) ---------- */
+.maestro-toolbar{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;}
+#maestros input.maestro-buscar{flex:1 1 260px; max-width:420px; height:30px; padding:0 10px; font-size:12px; font-family:var(--font);
+  border:1px solid var(--border); border-radius:var(--radius); background:#fff; color:var(--text);}
+#maestros input.maestro-buscar:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 2px rgba(14,107,138,.08);}
+.maestro-info{font-family:var(--mono); font-size:11px; color:var(--text-3);}
+.maestro-subtabs{display:flex; gap:18px; margin-bottom:12px; border-bottom:1px solid var(--border); flex-wrap:wrap;}
+.maestro-subtab{background:none; border:none; border-bottom:2px solid transparent; padding:6px 0; margin-bottom:-1px;
+  font-family:var(--font); font-size:12px; font-weight:600; color:var(--text-2); cursor:pointer;}
+.maestro-subtab:hover{color:var(--text);}
+.maestro-subtab.active{color:var(--accent); border-bottom-color:var(--accent);}
+.maestro-subtab .cnt{font-family:var(--mono); font-size:10px; color:var(--text-3); margin-left:4px;}
+.maestro-cat{display:inline-block; border-radius:10px; font-size:11px; font-weight:700; padding:2px 8px;
+  background:var(--accent-l); color:var(--accent-d); white-space:nowrap;}
+/* ---------- SUGERENCIAS DEL MAESTRO EN "LUGAR" ---------- */
+.sug-panel{position:fixed; z-index:750; background:#fff; border:1px solid var(--border-d); border-radius:var(--radius);
+  max-height:280px; overflow-y:auto; display:none; min-width:280px;}
+.sug-panel.abierto{display:block;}
+.sug-item{padding:6px 10px; cursor:pointer; border-bottom:1px solid var(--border);}
+.sug-item:last-child{border-bottom:none;}
+.sug-item.activo, .sug-item:hover{background:var(--accent-l);}
+.sug-nombre{font-size:12px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:6px; justify-content:space-between;}
+.sug-nombre mark{background:none; color:var(--accent); font-weight:700;}
+.sug-dir{font-size:11px; color:var(--text-2); margin-top:1px;}
+.sug-cat{font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3); white-space:nowrap;}
+.sug-vacio{padding:8px 10px; font-size:11px; color:var(--text-3);}
+
 @media screen and (max-width: 720px){
   .card{overflow:visible;}
   .layout{padding:calc(var(--nav-h) + 14px) 10px 30px;}
@@ -455,7 +482,7 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
   <div class="login-box">
     <div class="login-logo">BT</div>
     <div class="login-title">SGC · REG-014</div>
-    <div class="login-subtitle">Registro de Movimientos de Transporte</div>
+    <div class="login-subtitle">Prueba Logística</div>
 
     <label class="login-label">Usuario</label>
     <select id="loginUser"></select>
@@ -475,6 +502,7 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
   <div class="nav-brand">SGC · REG-014</div>
   <div class="nav-links">
     <a data-target="movimientos" class="active">Movimientos</a>
+    <a data-target="maestros">Maestros</a>
     <a data-target="pagos">Pagos</a>
     <a data-target="usuarios" id="navUsuarios" style="display:none;">Usuarios</a>
   </div>
@@ -498,7 +526,7 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
       <div class="doc-header">
         <div class="doc-logo">BT</div>
         <div class="doc-title-col">
-          <div class="doc-title">Registro de Movimientos de Transporte</div>
+          <div class="doc-title">Prueba Logística</div>
           <div class="doc-subtitle">Logística — Vehículos y Traslados</div>
         </div>
         <div class="doc-meta">
@@ -584,11 +612,11 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
         <div class="mov-table-scroll">
           <table class="mov-table">
             <colgroup>
-              <col class="no-print" style="width:54px;">
-              <col style="width:96px;"><col style="width:64px;">
-              <col style="width:165px;"><col><col style="width:120px;">
-              <col style="width:130px;"><col style="width:150px;"><col style="width:110px;">
-              <col style="width:170px;"><col class="no-print" style="width:40px;">
+              <col class="no-print" style="width:46px;">
+              <col style="width:92px;"><col style="width:72px;">
+              <col style="width:190px;"><col style="width:210px;"><col style="width:125px;">
+              <col style="width:120px;"><col style="width:135px;"><col style="width:110px;">
+              <col style="width:200px;"><col class="no-print" style="width:36px;">
             </colgroup>
             <thead id="movThead"></thead>
             <tbody id="movTbody"></tbody>
@@ -664,6 +692,32 @@ table.mov-table tr.dia-inicio td{border-top:1px solid var(--border-d);}
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= HOJA: MAESTROS (copia de solo lectura del maestro de REG-014) ================= -->
+  <div class="doc-block section-page" id="maestros">
+    <div class="card">
+      <div class="card-body">
+        <div class="section-title">Maestro de Lugares</div>
+        <p style="font-size:11px; color:var(--text-2); margin-bottom:12px;">
+          Copia del maestro de la app REG-014 original (Centros de Salud, Encomiendas, Esterilizadoras, Proveedores y
+          Clientes, Puntos Fijos). Al escribir en la columna "Lugar" de Movimientos se buscan coincidencias acá y, al
+          elegir una, se completan solas la dirección y la localidad.
+        </p>
+        <div class="maestro-toolbar no-print">
+          <input type="text" class="maestro-buscar" id="maestroBuscar" placeholder="Buscar por nombre o dirección...">
+          <button class="btn btn-light" id="btnActualizarMaestro" type="button" style="display:none;" title="Vuelve a copiar el maestro desde REG-014 (no modifica REG-014)">Actualizar desde REG-014</button>
+          <span class="maestro-info" id="maestroInfo"></span>
+        </div>
+        <div class="maestro-subtabs no-print" id="maestroSubtabs"></div>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th style="width:36px;">#</th><th>Nombre</th><th>Dirección</th><th style="width:170px;">Localidad</th><th style="width:150px;">Categoría</th></tr></thead>
+            <tbody id="tbodyMaestro"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -1187,26 +1241,6 @@ function liveFormatMonto(raw){
   intPart = intPart.replace(/^0+(?=\d)/,"");
   intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return decPart !== null ? intPart + "," + decPart : intPart;
-}
-/* Lee un monto tal como lo escribió el usuario, sin importar el teclado:
-   "1500", "1.500", "1500,50", "1.500,50" y "1500.50" (teclados de celular
-   que traen punto decimal). Con coma: la coma es decimal y los puntos son
-   de miles. Sin coma: un solo punto seguido de 1 o 2 dígitos es decimal;
-   cualquier otro punto es de miles. */
-function parseMontoFlex(str){
-  let t = String(str==null?"":str).replace(/[$\s]/g,"");
-  if(!t) return 0;
-  if(t.includes(",")) t = t.replace(/\./g,"").replace(/,/g,".").replace(/\.(?=.*\.)/g,"");
-  else if(/^\d*\.\d{1,2}$/.test(t)) { /* decimal con punto */ }
-  else t = t.replace(/\./g,"");
-  const n = parseFloat(t);
-  return isNaN(n) ? 0 : Math.round(n*100)/100;
-}
-/* Muestra el monto para editar, sin puntos de miles (así el teclado del
-   celular no se desincroniza): 1500 -> "1500", 1500.5 -> "1500,5". */
-function montoParaEditar(n){
-  n = Number(n)||0;
-  return n === 0 ? "" : String(n).replace(".", ",");
 }
 /* ============================================================
    CALCULO AUTOMATICO DE KM ENTRE UBICACIONES (por dirección)
@@ -2162,6 +2196,9 @@ function autocompletarLugar(f){
   if(!nom) return;
   const faltaDir = !(f.direccion||"").trim(), faltaLoc = !(f.localidad||"").trim();
   if(!faltaDir && !faltaLoc) return;
+  /* Coincidencia exacta con un lugar del maestro: manda el maestro. */
+  const m = maestroPorNombre(f.lugar);
+  if(m){ aplicarMaestroAFila(f, m, false); return; }
   let mejor = null;
   PERSONAS.forEach(p=> DATA.movs[p].filas.forEach(o=>{
     if(o.id === f.id || normalizarTexto(o.lugar) !== nom) return;
@@ -2278,13 +2315,17 @@ movTbody.addEventListener("drop", e=>{
   moverFila(id, dia.findIndex(x=>x.id===destinoId));
 });
 
-/* Monto: mientras se escribe NO se reformatea (reescribir el valor a mitad de
-   la escritura desincroniza el teclado de muchos celulares y mezcla los
-   dígitos apenas aparece el punto de miles, o sea, desde 1.000). Se formatea
-   al terminar (evento change). */
+movTbody.addEventListener("input", e=>{
+  if(e.target.getAttribute("data-field") === "gastoMonto"){
+    e.target.value = liveFormatMonto(e.target.value);
+    const pos = e.target.value.length;
+    e.target.setSelectionRange(pos, pos);
+  }
+});
 movTbody.addEventListener("focusin", e=>{
   if(e.target.getAttribute("data-field") === "gastoMonto"){
-    e.target.value = montoParaEditar(parseMontoFlex(e.target.value));
+    const n = parseMonto(e.target.value);
+    e.target.value = n === 0 ? "" : formatMonto(n).replace(/,00$/,"");
   }
 });
 
@@ -2315,6 +2356,7 @@ movTbody.addEventListener("change", e=>{
     persistir();
     return;
   }
+  if(field === "lugar" && sugEligiendo) return; // lo resuelve elegirSugerencia()
   if(field === "lugar" || field === "direccion" || field === "localidad"){
     const antes = textoConsulta(f);
     f[field] = e.target.value.trim();
@@ -2349,7 +2391,7 @@ movTbody.addEventListener("change", e=>{
     persistir(); return;
   }
   if(field === "gastoMonto"){
-    const n = parseMontoFlex(e.target.value);
+    const n = parseMonto(e.target.value);
     f.gastoMonto = n || "";
     e.target.value = n ? formatMonto(n) : "";
     marcarCarga(f);
@@ -2378,6 +2420,7 @@ document.querySelectorAll(".nav-links a").forEach(a=>{
     document.getElementById(targetId).classList.add("active");
     window.scrollTo({ top:0, behavior:"instant" in window ? "instant" : "auto" });
     if(targetId === "pagos") renderPagos();
+    if(targetId === "maestros") renderMaestroHoja();
   });
 });
 
@@ -3432,10 +3475,20 @@ function renderPagosRecorridos(){
   }).join("");
 }
 
+document.getElementById("tbodyPagosRecorridos").addEventListener("input", e=>{
+  const field = e.target.getAttribute("data-field");
+  if(field === "costoKm" || field === "costoHsExtra" || field === "pagoKm"){
+    const formateado = liveFormatMonto(e.target.value);
+    e.target.value = formateado;
+    const pos = e.target.value.length;
+    e.target.setSelectionRange(pos, pos);
+  }
+});
 document.getElementById("tbodyPagosRecorridos").addEventListener("focusin", e=>{
   const field = e.target.getAttribute("data-field");
   if(field === "costoKm" || field === "costoHsExtra" || field === "pagoKm"){
-    e.target.value = montoParaEditar(parseMontoFlex(e.target.value));
+    const n = parseMonto(e.target.value);
+    e.target.value = n === 0 ? "" : String(n).replace(".", ",");
   }
 });
 document.getElementById("tbodyPagosRecorridos").addEventListener("focusout", e=>{
@@ -3444,14 +3497,14 @@ document.getElementById("tbodyPagosRecorridos").addEventListener("focusout", e=>
     const tr = e.target.closest("tr[data-dia-id]");
     const diaId = tr.getAttribute("data-dia-id");
     if(!DATA.pagos[pagosPersonaActual].dias[diaId]) DATA.pagos[pagosPersonaActual].dias[diaId] = {};
-    DATA.pagos[pagosPersonaActual].dias[diaId][field] = parseMontoFlex(e.target.value);
+    DATA.pagos[pagosPersonaActual].dias[diaId][field] = parseMonto(e.target.value);
     marcarCarga(DATA.pagos[pagosPersonaActual].dias[diaId]);
     renderPagosRecorridos();
     persistir();
   } else if(field === "pagoKm"){
     const wk = e.target.getAttribute("data-semana");
     if(!DATA.pagos[pagosPersonaActual].semanas[wk]) DATA.pagos[pagosPersonaActual].semanas[wk] = {};
-    DATA.pagos[pagosPersonaActual].semanas[wk].pagoKm = parseMontoFlex(e.target.value);
+    DATA.pagos[pagosPersonaActual].semanas[wk].pagoKm = parseMonto(e.target.value);
     marcarCarga(DATA.pagos[pagosPersonaActual].semanas[wk], "Km");
     renderPagosRecorridos();
     persistir();
@@ -3489,10 +3542,20 @@ function renderPagosExtras(){
   }).join("");
 }
 
+document.getElementById("tbodyPagosExtras").addEventListener("input", e=>{
+  const field = e.target.getAttribute("data-field");
+  if(field === "pagoExtra"){
+    const formateado = liveFormatMonto(e.target.value);
+    e.target.value = formateado;
+    const pos = e.target.value.length;
+    e.target.setSelectionRange(pos, pos);
+  }
+});
 document.getElementById("tbodyPagosExtras").addEventListener("focusin", e=>{
   const field = e.target.getAttribute("data-field");
   if(field === "pagoExtra"){
-    e.target.value = montoParaEditar(parseMontoFlex(e.target.value));
+    const n = parseMonto(e.target.value);
+    e.target.value = n === 0 ? "" : String(n).replace(".", ",");
   }
 });
 document.getElementById("tbodyPagosExtras").addEventListener("focusout", e=>{
@@ -3500,7 +3563,7 @@ document.getElementById("tbodyPagosExtras").addEventListener("focusout", e=>{
   if(field === "pagoExtra"){
     const wk = e.target.getAttribute("data-semana");
     if(!DATA.pagos[pagosPersonaActual].semanas[wk]) DATA.pagos[pagosPersonaActual].semanas[wk] = {};
-    DATA.pagos[pagosPersonaActual].semanas[wk].pagoExtra = parseMontoFlex(e.target.value);
+    DATA.pagos[pagosPersonaActual].semanas[wk].pagoExtra = parseMonto(e.target.value);
     marcarCarga(DATA.pagos[pagosPersonaActual].semanas[wk], "Extra");
     renderPagosExtras();
     persistir();
@@ -3564,6 +3627,7 @@ function aplicarPermisos(){
     const target = a.getAttribute("data-target");
     let visible;
     if(target === "usuarios") visible = !!perm.administracion;
+    else if(target === "maestros") visible = true;
     else visible = !!perm[target];
     a.style.display = visible ? "" : "none";
   });
@@ -3591,6 +3655,7 @@ function aplicarPermisos(){
   renderTabla();
   actualizarBotonMigrar();
   document.getElementById("btnTraerReg014").style.display = perm.administracion ? "" : "none";
+  document.getElementById("btnActualizarMaestro").style.display = perm.administracion ? "" : "none";
   if(perm.administracion) renderUsuarios();
 }
 
@@ -3773,10 +3838,308 @@ document.getElementById("btnAgregarUsuario").addEventListener("click", ()=>{
 });
 
 /* ============================================================
+   MAESTRO DE LUGARES (copia del maestro de REG-014 original)
+   - Se guarda aparte del resto de los datos, en FB_PATH + "_maestros", para no
+     sumarlo a cada guardado de la planilla. Se lee UNA vez al abrir (once, sin
+     listener) y queda en localStorage como respaldo.
+   - Si esa copia todavía no existe, se trae sola una única vez desde REG-014
+     (proyecto SGC-A, nodo /reg014/data/maestros, solo lectura). Después solo se
+     actualiza con el botón "Actualizar desde REG-014" (permiso administración).
+   - En Movimientos, al escribir en "Lugar" se muestran las coincidencias; al
+     elegir una se completan dirección y localidad (y sus coordenadas, si el
+     maestro ya las tenía verificadas, para que el km use ese punto).
+============================================================ */
+const MAESTRO_PATH = FB_PATH + "_maestros";
+const LS_MAESTRO_KEY = LS_KEY + "_maestros";
+const MAESTRO_CATS = [
+  { key:"salud",           label:"Centros de Salud" },
+  { key:"encomiendas",     label:"Encomiendas" },
+  { key:"esterilizadoras", label:"Esterilizadoras" },
+  { key:"proveedores",     label:"Proveedores y Clientes" },
+  { key:"puntosFijos",     label:"Puntos Fijos" }
+];
+const MAESTRO_CAT_LABEL = Object.fromEntries(MAESTRO_CATS.map(c=>[c.key, c.label]));
+const MAESTRO_TIPO_LABEL = { fabrica:"Fábrica", cx:"CX", cliente:"Cliente" };
+let MAESTRO = { lista: [], ts: 0 };   // lista plana: { id, cat, nombre, ubicacion, direccion, localidad, tipo, lat, lng, manual }
+let maestroSubActual = "salud";
+
+function normBusqueda(s){ return String(s||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9ñ]+/g," ").trim(); }
+
+/* Convierte el nodo maestros de REG-014 a la lista plana de esta planilla. */
+function maestroDesdeReg014(maestros){
+  const m = maestros || {};
+  const lista = [];
+  MAESTRO_CATS.forEach(c=>{
+    let arr = comoArray(m[c.key]);
+    if(c.key === "esterilizadoras" && !arr.length) arr = comoArray(m.otros); // categoría vieja
+    arr.forEach(x=>{
+      if(!x || typeof x !== "object") return;
+      const nombre = String(x.nombre||"").trim();
+      if(!nombre) return;
+      const ubic = String(x.ubicacion||"").trim();
+      const p = partirUbicacion(ubic);
+      lista.push({
+        id: x.id || uid(), cat: c.key, nombre, ubicacion: ubic,
+        direccion: p.direccion, localidad: p.localidad,
+        tipo: c.key === "proveedores" ? (x.tipo || "fabrica") : "",
+        lat: (typeof x._lat === "number") ? x._lat : null,
+        lng: (typeof x._lng === "number") ? x._lng : null,
+        manual: !!x._geoManual
+      });
+    });
+  });
+  return lista;
+}
+function normalizarMaestro(v){
+  const lista = comoArray(v && v.lista).filter(x=> x && typeof x === "object" && x.nombre);
+  return { lista, ts: (v && v.ts) || 0 };
+}
+
+async function leerMaestroReg014(){
+  let app = firebase.apps.find(a=> a.name === "reg014maestro");
+  if(!app) app = firebase.initializeApp(REG014_ORIGEN_CONFIG, "reg014maestro");
+  try{
+    await app.auth().signInAnonymously();
+    const snap = await app.database().ref(REG014_ORIGEN_PATH + "/data/maestros").once("value");
+    return snap.val();
+  } finally {
+    try{ await app.delete(); }catch(e){}
+  }
+}
+
+async function traerMaestroDeReg014(){
+  const info = document.getElementById("maestroInfo");
+  if(info) info.textContent = "Trayendo maestro de REG-014…";
+  const crudo = await leerMaestroReg014();
+  const lista = maestroDesdeReg014(crudo);
+  if(!lista.length) throw new Error("REG-014 no devolvió lugares en el maestro");
+  MAESTRO = { lista, ts: Date.now() };
+  lsSet(LS_MAESTRO_KEY, MAESTRO);
+  try{ await getDbRef().root.child(MAESTRO_PATH.replace(/^\//,"")).set(MAESTRO); }
+  catch(e){ console.warn("No se pudo guardar la copia del maestro en Firebase (queda en este dispositivo):", e); }
+  renderMaestroHoja();
+}
+
+async function cargarMaestros(){
+  const local = lsGet(LS_MAESTRO_KEY);
+  if(local) MAESTRO = normalizarMaestro(local);
+  renderMaestroHoja();
+  let remoto = null;
+  try{
+    const snap = await getDbRef().root.child(MAESTRO_PATH.replace(/^\//,"")).once("value");
+    remoto = snap.val();
+  }catch(e){ console.warn("No se pudo leer el maestro:", e); }
+  if(remoto && remoto.lista){
+    const r = normalizarMaestro(remoto);
+    if(r.ts >= MAESTRO.ts){ MAESTRO = r; lsSet(LS_MAESTRO_KEY, MAESTRO); }
+    renderMaestroHoja();
+    return;
+  }
+  if(!MAESTRO.lista.length){
+    try{ await traerMaestroDeReg014(); }
+    catch(e){
+      console.warn("No se pudo traer el maestro de REG-014:", e);
+      const info = document.getElementById("maestroInfo");
+      if(info) info.textContent = "No se pudo traer el maestro de REG-014 (sin conexión o sin acceso).";
+    }
+  }
+}
+
+function maestroPorNombre(nombre){
+  const n = normBusqueda(nombre);
+  if(!n) return null;
+  return MAESTRO.lista.find(m=> normBusqueda(m.nombre) === n) || null;
+}
+
+/* Completa la fila con los datos del maestro. pisar=true (elegido de la lista)
+   reemplaza dirección y localidad; pisar=false solo llena las vacías. */
+function aplicarMaestroAFila(f, m, pisar){
+  f.lugar = m.nombre;
+  if(pisar || !(f.direccion||"").trim()) f.direccion = m.direccion || m.ubicacion || "";
+  if(pisar || !(f.localidad||"").trim()) f.localidad = m.localidad || "";
+  if(m.lat != null && m.lng != null){
+    const q = textoConsulta(f);
+    const k = q ? geoKey(q) : null;
+    if(k && !DATA.geo[k]) DATA.geo[k] = { dir: q, lat: m.lat, lng: m.lng, manual: !!m.manual, resuelto: "Maestro REG-014" };
+  }
+}
+
+/* Busca en el maestro: todas las palabras escritas tienen que estar en el
+   nombre o en la dirección (sin importar mayúsculas ni tildes). */
+function buscarEnMaestro(texto, max){
+  const q = normBusqueda(texto);
+  if(!q) return [];
+  const palabras = q.split(" ");
+  const res = [];
+  MAESTRO.lista.forEach(m=>{
+    const nom = normBusqueda(m.nombre), dir = normBusqueda(m.ubicacion);
+    const todo = nom + " " + dir;
+    if(!palabras.every(p=> todo.includes(p))) return;
+    let score = 3;
+    if(nom.startsWith(q)) score = 0;
+    else if(palabras.every(p=> nom.includes(p))) score = (" " + nom).includes(" " + palabras[0]) ? 1 : 2;
+    res.push({ m, score });
+  });
+  res.sort((a,b)=> a.score - b.score || a.m.nombre.localeCompare(b.m.nombre, "es"));
+  return res.slice(0, max || 10).map(r=> r.m);
+}
+function resaltar(nombre, texto){
+  const palabras = normBusqueda(texto).split(" ").filter(Boolean);
+  const plano = String(nombre||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+  const marcas = new Array(nombre.length).fill(false);
+  palabras.forEach(p=>{
+    let i = plano.indexOf(p);
+    while(i >= 0){ for(let j=i;j<i+p.length && j<marcas.length;j++) marcas[j] = true; i = plano.indexOf(p, i+p.length); }
+  });
+  let out = "", abierto = false;
+  for(let i=0;i<nombre.length;i++){
+    if(marcas[i] && !abierto){ out += "<mark>"; abierto = true; }
+    if(!marcas[i] && abierto){ out += "</mark>"; abierto = false; }
+    out += escHtml(nombre[i]);
+  }
+  return out + (abierto ? "</mark>" : "");
+}
+
+/* ---------- Panel de sugerencias ---------- */
+const sugPanel = document.createElement("div");
+sugPanel.className = "sug-panel no-print";
+document.body.appendChild(sugPanel);
+let sugUI = null;          // { input, filaId, items, activo }
+let sugEligiendo = false;  // true mientras se toca una sugerencia (evita que el blur procese el texto a medio escribir)
+
+function cerrarSugerencias(){ sugPanel.classList.remove("abierto"); sugUI = null; }
+function posicionarSugerencias(){
+  if(!sugUI) return;
+  const r = sugUI.input.getBoundingClientRect();
+  if(r.bottom < 0 || r.top > window.innerHeight){ cerrarSugerencias(); return; }
+  const ancho = Math.max(r.width, 300);
+  sugPanel.style.width = Math.min(ancho, window.innerWidth - 16) + "px";
+  sugPanel.style.left = Math.max(8, Math.min(r.left, window.innerWidth - ancho - 8)) + "px";
+  const abajo = window.innerHeight - r.bottom;
+  if(abajo < 200 && r.top > abajo){ sugPanel.style.top = ""; sugPanel.style.bottom = (window.innerHeight - r.top + 2) + "px"; }
+  else { sugPanel.style.bottom = ""; sugPanel.style.top = (r.bottom + 2) + "px"; }
+}
+function pintarSugerencias(){
+  if(!sugUI) return;
+  const texto = sugUI.input.value;
+  if(!sugUI.items.length){
+    sugPanel.innerHTML = MAESTRO.lista.length ? "" : `<div class="sug-vacio">El maestro todavía no está cargado.</div>`;
+    if(!MAESTRO.lista.length){ sugPanel.classList.add("abierto"); posicionarSugerencias(); }
+    else cerrarSugerencias();
+    return;
+  }
+  sugPanel.innerHTML = sugUI.items.map((m,i)=>`
+    <div class="sug-item ${i===sugUI.activo?"activo":""}" data-idx="${i}">
+      <div class="sug-nombre"><span>${resaltar(m.nombre, texto)}</span><span class="sug-cat">${escHtml(m.cat==="proveedores" && m.tipo ? (MAESTRO_TIPO_LABEL[m.tipo]||"Proveedor") : (MAESTRO_CAT_LABEL[m.cat]||""))}</span></div>
+      ${m.ubicacion ? `<div class="sug-dir">${escHtml(m.ubicacion)}</div>` : ""}
+    </div>`).join("");
+  sugPanel.classList.add("abierto");
+  posicionarSugerencias();
+}
+function abrirSugerencias(input){
+  const tr = input.closest("tr[data-fila-id]");
+  if(!tr) return;
+  const texto = input.value.trim();
+  sugEligiendo = false;
+  if(normBusqueda(texto).length < 2){ cerrarSugerencias(); return; }
+  sugUI = { input, filaId: tr.getAttribute("data-fila-id"), items: buscarEnMaestro(texto, 10), activo: 0 };
+  pintarSugerencias();
+}
+function elegirSugerencia(idx){
+  if(!sugUI) { sugEligiendo = false; return; }
+  const m = sugUI.items[idx];
+  const f = buscarFila(sugUI.filaId);
+  if(m) sugUI.input.value = m.nombre; // por si el navegador dispara "change" al rearmar la fila
+  cerrarSugerencias();
+  sugEligiendo = false;
+  if(!m || !f) return;
+  const antes = textoConsulta(f);
+  aplicarMaestroAFila(f, m, true);
+  marcarCarga(f);
+  renderTabla();
+  persistir();
+  if(antes !== textoConsulta(f) && textoConsulta(f)) recalcularKmFilas(filasAfectadasPorLugar(f));
+}
+
+movTbody.addEventListener("input", e=>{
+  if(e.target.getAttribute("data-field") === "lugar") abrirSugerencias(e.target);
+});
+movTbody.addEventListener("keydown", e=>{
+  if(!sugUI || e.target !== sugUI.input) return;
+  if(e.key === "ArrowDown"){ e.preventDefault(); sugUI.activo = Math.min(sugUI.items.length-1, sugUI.activo+1); pintarSugerencias(); }
+  else if(e.key === "ArrowUp"){ e.preventDefault(); sugUI.activo = Math.max(0, sugUI.activo-1); pintarSugerencias(); }
+  else if(e.key === "Enter" && sugUI.items.length){ e.preventDefault(); sugEligiendo = true; elegirSugerencia(sugUI.activo); }
+  else if(e.key === "Escape"){ cerrarSugerencias(); }
+}, true);
+movTbody.addEventListener("focusout", e=>{
+  if(sugUI && e.target === sugUI.input && !sugEligiendo) setTimeout(()=>{ if(!sugEligiendo) cerrarSugerencias(); }, 150);
+});
+/* pointerdown llega antes que el blur del campo: se marca que se está eligiendo
+   y se evita que el campo pierda el foco con el texto a medio escribir. */
+sugPanel.addEventListener("pointerdown", e=>{
+  if(e.target.closest(".sug-item")){ sugEligiendo = true; e.preventDefault(); }
+});
+sugPanel.addEventListener("pointercancel", ()=>{ sugEligiendo = false; }); // ej: se arrastró para scrollear la lista
+sugPanel.addEventListener("click", e=>{
+  const it = e.target.closest(".sug-item");
+  if(!it){ sugEligiendo = false; return; }
+  elegirSugerencia(Number(it.getAttribute("data-idx")));
+});
+window.addEventListener("scroll", ()=>{ if(sugUI && !sugEligiendo) posicionarSugerencias(); }, true);
+window.addEventListener("resize", ()=>{ if(sugUI) posicionarSugerencias(); });
+
+/* ---------- Hoja Maestros (solo lectura) ---------- */
+function renderMaestroHoja(){
+  const tbody = document.getElementById("tbodyMaestro");
+  if(!tbody) return;
+  const q = document.getElementById("maestroBuscar").value;
+  const conteo = {};
+  MAESTRO.lista.forEach(m=>{ conteo[m.cat] = (conteo[m.cat]||0) + 1; });
+  document.getElementById("maestroSubtabs").innerHTML = MAESTRO_CATS.map(c=>
+    `<button type="button" class="maestro-subtab ${c.key===maestroSubActual?"active":""}" data-sub="${c.key}">${c.label}<span class="cnt">${conteo[c.key]||0}</span></button>`
+  ).join("");
+  /* Con búsqueda se muestran coincidencias de todas las categorías. */
+  const lista = q.trim()
+    ? buscarEnMaestro(q, 1000)
+    : MAESTRO.lista.filter(m=> m.cat === maestroSubActual).sort((a,b)=> a.nombre.localeCompare(b.nombre, "es"));
+  tbody.innerHTML = lista.length ? lista.map((m,i)=>`
+    <tr>
+      <td class="rownum">${i+1}</td>
+      <td style="font-weight:600;">${escHtml(m.nombre)}</td>
+      <td>${escHtml(m.direccion || m.ubicacion)}</td>
+      <td>${escHtml(m.localidad)}</td>
+      <td><span class="maestro-cat">${escHtml(MAESTRO_CAT_LABEL[m.cat]||"")}${m.cat==="proveedores" && m.tipo ? " · " + escHtml(MAESTRO_TIPO_LABEL[m.tipo]||m.tipo) : ""}</span></td>
+    </tr>`).join("")
+    : `<tr><td colspan="5" class="empty-hint">${MAESTRO.lista.length ? "Sin coincidencias." : "El maestro todavía no está cargado."}</td></tr>`;
+  const info = document.getElementById("maestroInfo");
+  if(MAESTRO.ts){
+    const d = new Date(MAESTRO.ts);
+    info.textContent = `${MAESTRO.lista.length} lugares · copiado de REG-014 el ${d.toLocaleString("es-AR",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"})}`;
+  }
+}
+document.getElementById("maestroBuscar").addEventListener("input", renderMaestroHoja);
+document.getElementById("maestroSubtabs").addEventListener("click", e=>{
+  const b = e.target.closest(".maestro-subtab");
+  if(!b) return;
+  maestroSubActual = b.getAttribute("data-sub");
+  document.getElementById("maestroBuscar").value = "";
+  renderMaestroHoja();
+});
+document.getElementById("btnActualizarMaestro").addEventListener("click", async (e)=>{
+  const btn = e.currentTarget;
+  if(!confirm("¿Volver a copiar el maestro desde REG-014? Reemplaza la copia actual (no modifica REG-014 ni los movimientos ya cargados).")) return;
+  btn.disabled = true;
+  try{ await traerMaestroDeReg014(); }
+  catch(err){ alert("No se pudo traer el maestro de REG-014: " + (err && err.message ? err.message : err)); renderMaestroHoja(); }
+  finally{ btn.disabled = false; }
+});
+
+/* ============================================================
    INIT
 ============================================================ */
 cargarInicial().then(()=>{
   datosListos = true;
+  cargarMaestros();
   poblarLoginUsuarios();
   actualizarBotonLogin();
   const sesionGuardada = leerSesion();
